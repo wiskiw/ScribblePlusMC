@@ -27,6 +27,7 @@ loom {
 }
 
 repositories {
+    maven("https://api.modrinth.com/maven")
 }
 
 dependencies {
@@ -38,6 +39,8 @@ dependencies {
     modImplementation("net.fabricmc:fabric-loader:${prop("fabric", "loaderVersion")}")
 
     include(fabricApiModule("fabric-resource-loader-v0")!!)
+
+    modCompileOnly("maven.modrinth:symbol-chat:${prop("symbol-chat", "version")}")
 }
 
 // renderButton was changed to renderWidget after 1.20.3
