@@ -8,11 +8,9 @@ import me.chrr.scribble.book.*;
 import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
-import me.chrr.scribble.model.command.*;
 import me.chrr.scribble.model.memento.BookEditScreenMemento;
-import me.chrr.scribble.tool.commandmanager.Command;
-import me.chrr.scribble.tool.commandmanager.CommandManager;
 import me.chrr.scribble.tool.commandmanager.Restorable;
+import me.chrr.scribble.tool.statemanager.MementoStateManager;
 import net.minecraft.client.font.TextHandler;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
@@ -114,7 +112,8 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
     private final List<RichText> richPages = new ArrayList<>();
 
     @Unique
-    private final CommandManager commandManager = new CommandManager(BOOK_EDIT_HISTORY_SIZE);
+    private final MementoStateManager<BookEditScreenMemento> mementoStateManager =
+            new MementoStateManager<>(this, BOOK_EDIT_HISTORY_SIZE);
 
     @Unique
     @NotNull
@@ -194,8 +193,8 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
     }
 
     @Unique
-    private CommandManager getCommandManager() {
-        return commandManager;
+    private MementoStateManager<BookEditScreenMemento> getStateManager() {
+        return mementoStateManager;
     }
 
     /**
@@ -337,16 +336,12 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
             return;
         }
 
-        Command command = new BookEditScreenChangeColorForSelectionCommand(
-                this,
-                getRichSelectionManager(),
-                color,
-                newColor -> {
-                    activeColor = newColor;
-                    invalidateFormattingButtons();
-                }
-        );
-        getCommandManager().execute(command);
+        activeColor = color;
+        invalidateFormattingButtons();
+
+        getRichSelectionManager().applyColorForSelection(color);
+
+        getStateManager().saveState();
     }
 
     @Unique
@@ -603,61 +598,54 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
             method = "charTyped",
             at = @At(
                     value = "INVOKE",
-                    target = "Lnet/minecraft/client/util/SelectionManager;insert(Ljava/lang/String;)V",
+                    target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;invalidatePageContent()V",
                     ordinal = 0,
-                    shift = At.Shift.BEFORE
-            ),
-            cancellable = true
+                    shift = At.Shift.AFTER
+            )
     )
     private void charTypedEditMode(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        Command command = new BookEditScreenInsertCommand(this, this.currentPageSelectionManager, chr);
-        getCommandManager().execute(command);
-        cir.setReturnValue(true);
-        cir.cancel();
+        getStateManager().saveState();
     }
 
     @Inject(method = "keyPressedEditMode", at = @At(value = "HEAD"), cancellable = true)
     private void keyPressedEditMode(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        // Override default cut/paste (with and without formatting) shortcuts behavior with command pattern
-        if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_X) {
-            Command command = new BookEditScreenCutCommand(this, getRichSelectionManager(), hasShiftDown());
-            getCommandManager().execute(command);
-            cir.setReturnValue(true);
-            cir.cancel();
-        } else if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_V) {
-            Command command = new BookEditScreenPasteCommand(this, getRichSelectionManager(), hasShiftDown());
-            getCommandManager().execute(command);
-            cir.setReturnValue(true);
-            cir.cancel();
-        }
+        // Copy/cut/paste without formatting when SHIFT is held down.
+        if (hasControlDown() && hasShiftDown() && !hasAltDown()) {
+            if (keyCode == GLFW.GLFW_KEY_C) {
+                this.getRichSelectionManager().copyWithoutFormatting();
+                getStateManager().saveState(); // todo save state after regular copy action
+                cir.setReturnValue(true);
+                cir.cancel();
 
-        // Copy without formatting when SHIFT is held down.
-        if (hasControlDown() && hasShiftDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_C) {
-            this.getRichSelectionManager().copyWithoutFormatting();
+            } else if (keyCode == GLFW.GLFW_KEY_X) {
+                this.getRichSelectionManager().cutWithoutFormatting();
+                getStateManager().saveState();
+                cir.setReturnValue(true);
+                cir.cancel();
+
+            } else if (keyCode == GLFW.GLFW_KEY_V) {
+                this.getRichSelectionManager().pasteWithoutFormatting();
+                getStateManager().saveState();
+                cir.setReturnValue(true);
+                cir.cancel();
+            }
         }
 
         // Inject hotkeys for Undo and Redo
         if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_Z) {
             if (hasShiftDown()) {
-                getCommandManager().tryRedo();
+                getStateManager().tryRedo();
             } else {
-                getCommandManager().tryUndo();
+                getStateManager().tryUndo();
             }
 
             cir.setReturnValue(true);
             cir.cancel();
         }
 
+        // fixme save state AFTER delete press
         if (keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
-            SelectionManager.SelectionType selectionType = Screen.hasControlDown()
-                    ? SelectionManager.SelectionType.WORD
-                    : SelectionManager.SelectionType.CHARACTER;
-
-            Command command = new BookEditScreenDeleteCommand(this, getRichSelectionManager(), selectionType);
-            getCommandManager().execute(command);
-
-            cir.setReturnValue(true);
-            cir.cancel();
+            getStateManager().saveState();
         }
 
         // We inject some hotkeys for toggling formatting options.
