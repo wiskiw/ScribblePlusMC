@@ -8,8 +8,8 @@ import me.chrr.scribble.book.*;
 import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
-import me.chrr.scribble.model.memento.BookEditScreenMemento;
-import me.chrr.scribble.tool.commandmanager.Restorable;
+import me.chrr.scribble.model.BookEditScreenMemento;
+import me.chrr.scribble.tool.Restorable;
 import me.chrr.scribble.tool.statemanager.MementoStateManager;
 import net.minecraft.client.font.TextHandler;
 import net.minecraft.client.gui.screen.ConfirmScreen;
@@ -42,7 +42,11 @@ import java.util.*;
 @Mixin(BookEditScreen.class)
 public abstract class BookEditScreenMixin extends Screen implements Restorable<BookEditScreenMemento> {
 
+    @Unique
     private static final int BOOK_EDIT_HISTORY_SIZE = 30;
+
+    @Unique
+    private static final int MAX_PAGES_NUMBER = 100;
 
     @Unique
     private static final Formatting[] COLORS = new Formatting[]{
@@ -377,15 +381,17 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
 
         for (ColorSwatchWidget swatch : colorSwatches) {
             if (swatch != null) {
-                swatch.visible = !this.signing;
+                swatch.visible = !signing;
             }
         }
 
-        Optional.ofNullable(deletePageButton).ifPresent(button -> button.visible = !this.signing && this.richPages.size() > 1);
-        Optional.ofNullable(insertPageButton).ifPresent(button -> button.visible = !this.signing);
+        Optional.ofNullable(deletePageButton).ifPresent(button -> button.visible = !signing && richPages.size() > 1);
+        Optional.ofNullable(insertPageButton).ifPresent(button ->
+                button.visible = !signing && richPages.size() < MAX_PAGES_NUMBER
+        );
 
-        Optional.ofNullable(saveBookButton).ifPresent(button -> button.visible = !this.signing);
-        Optional.ofNullable(loadBookButton).ifPresent(button -> button.visible = !this.signing);
+        Optional.ofNullable(saveBookButton).ifPresent(button -> button.visible = !signing);
+        Optional.ofNullable(loadBookButton).ifPresent(button -> button.visible = !signing);
     }
 
     @Unique
@@ -464,6 +470,7 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
 
             this.richPages.clear();
             this.pages.clear();
+            getStateManager().clear();
 
             // Loading an empty book file would set the total amount of pages to 0.
             // We work around this by just inserting a new empty page.
@@ -496,17 +503,23 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
         this.currentPage = Math.min(this.currentPage, this.richPages.size() - 1);
         this.updateButtons();
         this.changePage();
+
+        // FixMe Should we save the whole book here?
+        // to be able to restore book state on rollback
     }
 
     @Unique
     private void insertPage() {
-        if (this.richPages.size() < 100) {
+        if (this.richPages.size() < MAX_PAGES_NUMBER) {
             this.richPages.add(this.currentPage, RichText.empty());
             this.pages.add(this.currentPage, "");
             this.dirty = true;
 
             this.updateButtons();
             this.changePage();
+
+            // FixMe Should we save the whole book here?
+            // to be able to restore book state on rollback
         }
     }
 
@@ -583,6 +596,9 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
     @Inject(method = "appendNewPage", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z"))
     private void appendNewPage(CallbackInfo ci) {
         richPages.add(RichText.empty());
+
+        // FixMe Should we save the whole book here?
+        // to be able to restore book state on rollback
     }
 
     /**
@@ -613,19 +629,19 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
         if (hasControlDown() && hasShiftDown() && !hasAltDown()) {
             if (keyCode == GLFW.GLFW_KEY_C) {
                 this.getRichSelectionManager().copyWithoutFormatting();
-                getStateManager().saveState(); // todo save state after regular copy action
+                getStateManager().saveState(); // todo save state also after REGULAR copy action
                 cir.setReturnValue(true);
                 cir.cancel();
 
             } else if (keyCode == GLFW.GLFW_KEY_X) {
                 this.getRichSelectionManager().cutWithoutFormatting();
-                getStateManager().saveState();
+                getStateManager().saveState(); // todo save state also after REGULAR cut action
                 cir.setReturnValue(true);
                 cir.cancel();
 
             } else if (keyCode == GLFW.GLFW_KEY_V) {
                 this.getRichSelectionManager().pasteWithoutFormatting();
-                getStateManager().saveState();
+                getStateManager().saveState(); // todo save state also after REGULAR paste action
                 cir.setReturnValue(true);
                 cir.cancel();
             }
@@ -643,7 +659,7 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
             cir.cancel();
         }
 
-        // fixme save state AFTER delete press
+        // FixMe save state AFTER delete press
         if (keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
             getStateManager().saveState();
         }
@@ -813,8 +829,6 @@ public abstract class BookEditScreenMixin extends Screen implements Restorable<B
 
         activeColor = memento.color();
         activeModifiers = memento.modifiers();
-
-        // update color and modifiers on the UI
         invalidateFormattingButtons();
     }
 }

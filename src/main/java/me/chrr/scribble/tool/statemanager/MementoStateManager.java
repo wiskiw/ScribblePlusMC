@@ -1,7 +1,6 @@
 package me.chrr.scribble.tool.statemanager;
 
-
-import me.chrr.scribble.tool.commandmanager.Restorable;
+import me.chrr.scribble.tool.Restorable;
 
 import java.util.LinkedList;
 
