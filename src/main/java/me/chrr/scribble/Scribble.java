@@ -11,6 +11,7 @@ public class Scribble implements ClientModInitializer {
     public static Logger LOGGER = LogManager.getLogger();
 
     public static boolean shouldCenter = false;
+    public static boolean isAdvancedSelectionEnabled = false;
 
     @Override
     public void onInitializeClient() {

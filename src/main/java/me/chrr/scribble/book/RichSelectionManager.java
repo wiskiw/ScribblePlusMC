@@ -1,6 +1,7 @@
 package me.chrr.scribble.book;
 
 import me.chrr.scribble.Scribble;
+import me.chrr.scribble.tool.AdvancedTextHandler;
 import net.minecraft.client.util.SelectionManager;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Pair;
@@ -216,6 +217,36 @@ public class RichSelectionManager extends SelectionManager {
     protected void updateSelectionRange(boolean shiftDown) {
         super.updateSelectionRange(shiftDown);
         updateSelectionFormatting();
+    }
+
+    @Override
+    public void moveCursorPastWord(int offset, boolean shiftDown) {
+        if (Scribble.isAdvancedSelectionEnabled) {
+            // original Minecraft implementation with custom moveCursorByWords()
+            this.selectionStart = AdvancedTextHandler.moveCursorByWords(
+                    this.textGetter.get().getPlainText(),
+                    offset,
+                    this.selectionStart
+            );
+            this.updateSelectionRange(shiftDown);
+        } else {
+            super.moveCursorPastWord(offset, shiftDown);
+        }
+    }
+
+    @Override
+    public void deleteWord(int offset) {
+        if (Scribble.isAdvancedSelectionEnabled) {
+            // original Minecraft implementation with custom moveCursorByWords()
+            int i = AdvancedTextHandler.moveCursorByWords(
+                    this.textGetter.get().getPlainText(),
+                    offset,
+                    this.selectionStart
+            );
+            this.delete(i - this.selectionStart);
+        } else {
+            super.deleteWord(offset);
+        }
     }
 
     @Nullable
