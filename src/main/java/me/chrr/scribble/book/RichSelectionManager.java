@@ -11,19 +11,23 @@ import net.replaceitem.symbolchat.resource.FontProcessor;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
+import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
 import java.util.function.Supplier;
 
 public class RichSelectionManager extends SelectionManager {
+
+    public static final Formatting DEFAULT_COLOR = Formatting.BLACK;
+
     private final Supplier<RichText> textGetter;
     private final Consumer<RichText> textSetter;
     private final Predicate<RichText> textFilter;
     private final StateCallback stateCallback;
 
     @Nullable
-    private Formatting color = Formatting.BLACK;
+    private Formatting color = DEFAULT_COLOR;
     private Set<Formatting> modifiers = new HashSet<>();
 
     public RichSelectionManager(Supplier<RichText> textGetter, Consumer<RichText> textSetter, Consumer<String> stringSetter, StateCallback stateCallback, Supplier<String> clipboardGetter, Consumer<String> clipboardSetter, Predicate<RichText> textFilter) {
@@ -44,6 +48,10 @@ public class RichSelectionManager extends SelectionManager {
         };
     }
 
+    private Formatting getSelectedColor() {
+        return Optional.ofNullable(this.color).orElse(DEFAULT_COLOR);
+    }
+
     @Override
     public boolean insert(char c) {
         //? if >=1.20.5 {
@@ -60,16 +68,33 @@ public class RichSelectionManager extends SelectionManager {
 
     @Override
     public void insert(String string) {
+        string = tryToFormatStringWithSymbolChatFontProcessor(string);
         RichText text = this.textGetter.get();
+
         int start = Math.min(this.selectionStart, this.selectionEnd);
         int end = Math.max(this.selectionStart, this.selectionEnd);
 
-        string = tryToFormatStringWithSymbolChatFontProcessor(string);
+        RichText insertion;
 
-        if (start == end) {
-            text = text.insert(start, string);
+        // If the string contains formatting codes, we keep them in. Otherwise,
+        // we want to keep the formatting that is already selected.
+        // We consider the RESET formatting code to be void, as it messes with books.
+        boolean isFormattedString = !Formatting.strip(string)
+                .equals(string.replaceAll(Formatting.RESET.toString(), ""));
+
+        if (isFormattedString) {
+            insertion = RichText.fromFormattedString(string);
         } else {
-            text = text.replace(start, end, string);
+            // We strip any leftover RESET tags from the string.
+            string = string.replaceAll(Formatting.RESET.toString(), "");
+            insertion = new RichText(string, getSelectedColor(), modifiers);
+        }
+
+        // If no text is selected, we can just insert instead of replace.
+        if (start == end) {
+            text = text.insert(start, insertion);
+        } else {
+            text = text.replace(start, end, insertion);
         }
 
         if (this.textFilter.test(text)) {
@@ -121,14 +146,14 @@ public class RichSelectionManager extends SelectionManager {
             int start = Math.min(this.selectionStart, this.selectionEnd);
             int end = Math.max(this.selectionStart, this.selectionEnd);
 
-            text = text.replace(start, end, "");
+            text = text.replace(start, end, RichText.empty());
             this.selectionStart = this.selectionEnd = start;
         } else {
             int cursor = Util.moveCursor(text.getPlainText(), this.selectionStart, offset);
             int start = Math.min(cursor, this.selectionStart);
             int end = Math.max(cursor, this.selectionStart);
 
-            text = text.replace(start, end, "");
+            text = text.replace(start, end, RichText.empty());
             this.selectionEnd = this.selectionStart = start;
         }
 
@@ -148,12 +173,9 @@ public class RichSelectionManager extends SelectionManager {
     }
 
     private String getSelectedFormattedText() {
-        String fullText = textGetter.get().getAsFormattedString();
-
         int i = Math.min(this.selectionStart, this.selectionEnd);
         int j = Math.max(this.selectionStart, this.selectionEnd);
-        RichText richText = RichText.fromFormattedString(fullText);
-        return richText.subText(i, j).getAsFormattedString();
+        return textGetter.get().subText(i, j).getAsFormattedString();
     }
 
     @Override
@@ -232,6 +254,19 @@ public class RichSelectionManager extends SelectionManager {
     @Nullable
     public Formatting getColor() {
         return color;
+    }
+
+    public void copyWithoutFormatting() {
+        this.clipboardSetter.accept(Formatting.strip(this.getSelectedFormattedText()));
+    }
+
+    public void cutWithoutFormatting() {
+        this.clipboardSetter.accept(Formatting.strip(this.getSelectedFormattedText()));
+        this.delete(0);
+    }
+
+    public void pasteWithoutFormatting() {
+        this.insert(Formatting.strip(this.clipboardGetter.get()));
     }
 
     public interface StateCallback {

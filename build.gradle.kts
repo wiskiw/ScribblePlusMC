@@ -40,12 +40,14 @@ dependencies {
 
     include(fabricApiModule("fabric-resource-loader-v0")!!)
 
+    modCompileOnly("maven.modrinth:symbol-chat:${prop("symbol-chat", "version")}")
+
     // Test dependencies
     testImplementation("org.junit.jupiter:junit-jupiter-api:5.10.3")
     testImplementation("org.junit.jupiter:junit-jupiter-params:5.10.3")
     testRuntimeOnly("org.junit.jupiter:junit-jupiter-engine:5.10.3")
 
-    modCompileOnly("maven.modrinth:symbol-chat:${prop("symbol-chat", "version")}")
+    testImplementation("org.mockito:mockito-core:5.12.0")
 }
 
 // renderButton was changed to renderWidget after 1.20.3
@@ -81,6 +83,11 @@ tasks {
 
     "test"(Test::class) {
         useJUnitPlatform()
+
+        // To log test status in console
+        testLogging {
+            events("passed", "skipped", "failed")
+        }
     }
 }
 

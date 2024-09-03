@@ -132,9 +132,8 @@ public abstract class BookEditScreenMixin extends Screen {
         super(title);
     }
 
-
     @Unique
-    private String getClipboard() {
+    private String getRawClipboard() {
         // the original logic of BookEditScreen.getClipboard without Formatting.strip() call
         // to keep text styling modifiers in copied text
         return this.client != null ? client.keyboard.getClipboard().replaceAll("\\r", "") : "";
@@ -262,7 +261,7 @@ public abstract class BookEditScreenMixin extends Screen {
                 this::setPageText,
                 (string) -> this.pages.set(this.currentPage, string),
                 this::updateState,
-                this::getClipboard,
+                this::getRawClipboard,
                 this::setClipboard,
                 text -> text.getAsFormattedString().length() < 1024
                         && this.textRenderer.getWrappedLinesHeight(text, 114) <= 128
@@ -499,6 +498,17 @@ public abstract class BookEditScreenMixin extends Screen {
 
     @Inject(method = "keyPressedEditMode", at = @At(value = "HEAD"), cancellable = true)
     private void keyPressedEditMode(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        // Copy/cut/paste without formatting when SHIFT is held down.
+        if (hasControlDown() && hasShiftDown() && !hasAltDown()) {
+            if (keyCode == GLFW.GLFW_KEY_C) {
+                this.getRichSelectionManager().copyWithoutFormatting();
+            } else if (keyCode == GLFW.GLFW_KEY_X) {
+                this.getRichSelectionManager().cutWithoutFormatting();
+            } else if (keyCode == GLFW.GLFW_KEY_V) {
+                this.getRichSelectionManager().pasteWithoutFormatting();
+            }
+        }
+
         // We inject some hotkeys for toggling formatting options.
         if (hasControlDown() && !hasShiftDown() && !hasAltDown()) {
             if (keyCode == GLFW.GLFW_KEY_B) {

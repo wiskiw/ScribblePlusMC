@@ -37,6 +37,17 @@ public class RichText implements StringVisitable {
         this.segments = segments;
     }
 
+    /**
+     * Create a new single-segment RichText object from existing text and style.
+     *
+     * @param text      text of the segment.
+     * @param color     color of the segment.
+     * @param modifiers modifiers of the segment.
+     */
+    public RichText(String text, Formatting color, Set<Formatting> modifiers) {
+        this(List.of(new Segment(text, color, modifiers)));
+    }
+
     public List<Segment> getSegments() {
         return segments;
     }
@@ -108,47 +119,42 @@ public class RichText implements StringVisitable {
     /**
      * Merges consecutive segments with the same color and modifiers attributes into a single segment.
      *
-     * @param segments a list of {@link Segment} objects to be processed. The list must not be null.
-     * @return a list of {@link Segment} objects with consecutive segments of the same style merged.
+     * @return a new {@link RichText} object that has the same contents in potentially fewer segments.
      */
     @NotNull
-    private static List<Segment> mergeSimilarStyledSegments(@NotNull List<Segment> segments) {
-        if (segments.isEmpty()) {
-            return segments;
+    private RichText mergeSimilarSegments() {
+        if (this.segments.isEmpty()) {
+            return this;
         }
-        List<Segment> mergedSegments = new ArrayList<>();
 
-        Segment currentStyledSegment = null;
-        for (Segment segment : segments) {
-            if (currentStyledSegment == null) {
-                currentStyledSegment = segment;
+        List<Segment> mergedSegments = new ArrayList<>();
+        Segment previousSegment = null;
+
+        for (Segment segment : this.segments) {
+            if (previousSegment == null) {
+                previousSegment = segment;
                 continue;
             }
 
-            boolean isColorMatching = currentStyledSegment.color == segment.color;
-            boolean isModifiersMatching = segment.modifiers.containsAll(currentStyledSegment.modifiers())
-                    && currentStyledSegment.modifiers().containsAll(segment.modifiers);
+            boolean isColorMatching = previousSegment.color == segment.color;
+            boolean areModifiersMatching = segment.modifiers.containsAll(previousSegment.modifiers())
+                    && previousSegment.modifiers().containsAll(segment.modifiers);
 
-            if (isColorMatching && isModifiersMatching) {
-                // merge segment with currentStyledSegment
-                currentStyledSegment = new Segment(
-                        currentStyledSegment.text + segment.text,
-                        currentStyledSegment.color,
-                        currentStyledSegment.modifiers
+            if (isColorMatching && areModifiersMatching) {
+                previousSegment = new Segment(
+                        previousSegment.text + segment.text,
+                        previousSegment.color,
+                        previousSegment.modifiers
                 );
             } else {
-                // put currentStyledSegment to the result
-                mergedSegments.add(currentStyledSegment);
-
-                // and set segment as a new currentStyledSegment
-                currentStyledSegment = segment;
+                mergedSegments.add(previousSegment);
+                previousSegment = segment;
             }
         }
 
-        // adding the last styled segment
-        mergedSegments.add(currentStyledSegment);
+        mergedSegments.add(previousSegment);
 
-        return mergedSegments;
+        return new RichText(mergedSegments);
     }
 
     /**
@@ -212,26 +218,17 @@ public class RichText implements StringVisitable {
 
     /**
      * Returns the rich text with a portion replaced.
-     * <p>
-     * If the replacement string contains formatting, its color and modifiers are used. If not, the formatting from the
-     * start replacement position is applied. See {@link #createSegmentsWithLocalFormatting(int, int, String)}
-     * <p>
      *
      * @param start       start of the replacement area (inclusive).
      * @param end         end of the replacement area (exclusive).
      * @param replacement text to replace the area with.
      * @return a RichText instance with the text in the specified area replaced.
      */
-    public RichText replace(int start, int end, String replacement) {
-        List<Segment> replacementSegments = createSegmentsWithLocalFormatting(start, end, replacement);
-        return replace(start, end, replacementSegments);
-    }
-
-    public RichText replace(int start, int end, List<Segment> replacementSegments) {
+    public RichText replace(int start, int end, RichText replacement) {
         int current = 0;
         List<Segment> newSegments = new ArrayList<>();
         boolean replacementAppended = false;
-        for (Segment segment : segments) {
+        for (Segment segment : this.segments) {
             int length = segment.text.length();
 
             // We're before the segment we're replacing in
@@ -255,8 +252,8 @@ public class RichText implements StringVisitable {
                 newSegments.add(new Segment(segment.text.substring(0, localStart), segment.color, segment.modifiers));
             }
 
-            if (!replacementSegments.isEmpty() && !replacementAppended) {
-                newSegments.addAll(replacementSegments);
+            if (!replacement.isEmpty() && !replacementAppended) {
+                newSegments.addAll(replacement.segments);
                 replacementAppended = true;
             }
 
@@ -268,56 +265,26 @@ public class RichText implements StringVisitable {
             current += length;
         }
 
-        newSegments = mergeSimilarStyledSegments(newSegments);
-        return new RichText(newSegments);
+        return new RichText(newSegments).mergeSimilarSegments();
     }
 
     /**
-     * Insert a new string of text with specified styling.
-     *
-     * @param offset    offset into the text to start inserting.
-     * @param text      string of text to insert.
-     * @param color     color of the text. See {@link Formatting}
-     * @param modifiers modifiers of the text. See {@link Formatting}
-     * @return a RichText instance with the specified string inserted.
-     */
-    public RichText insert(int offset, String text, Formatting color, Set<Formatting> modifiers) {
-        return insert(offset, List.of(new Segment(text, color, modifiers)));
-    }
-
-    /**
-     * Inserts the given string at the specified offset.
-     * <p>
-     * If the string contains formatting, its color and modifiers are used. If not, the formatting from the
-     * insertion location is applied. See {@link #createSegmentsWithLocalFormatting(int, int, String)}
-     * <p>
-     *
-     * @param offset the position at which to insert the string
-     * @param string the string to insert
-     * @return a new {@link RichText} with the string inserted
-     */
-    public RichText insert(int offset, String string) {
-        List<Segment> insertSegments = createSegmentsWithLocalFormatting(offset, offset, string);
-        return insert(offset, insertSegments);
-    }
-
-    /**
-     * Inserts a list of new {@link Segment} objects into the {@link RichText} at the specified text offset.
+     * Inserts a piece of text into the {@link RichText} at the specified text offset.
      *
      * <p>If the offset is beyond the end of the current text, the new segments are appended at the end.
      * The method splits existing segments if necessary and merges similar styled segments afterwards.</p>
      *
-     * @param offset      the position at which to insert the new segments (including formatting characters)
-     * @param newSegments a list of {@link Segment} objects to insert
+     * @param offset the position at which to insert the new segments (including formatting characters)
+     * @param text   the rich text to insert
      * @return a new {@link RichText} instance with the segments inserted
      */
-    public RichText insert(int offset, List<Segment> newSegments) {
-        if (newSegments.isEmpty()) {
+    public RichText insert(int offset, RichText text) {
+        if (text.isEmpty()) {
             return this;
         }
 
         if (this.segments.isEmpty()) {
-            return new RichText(newSegments);
+            return text;
         }
 
         List<Segment> combinedSegments = new ArrayList<>(segments);
@@ -340,16 +307,16 @@ public class RichText implements StringVisitable {
             // Merging segments in a specific order, to keep the indices correct.
             // First: adding new segments
             combinedSegments.remove(i);
-            combinedSegments.addAll(i, newSegments);
+            combinedSegments.addAll(i, text.segments);
 
             boolean shouldSplitSegment = offset < currentOffset + segmentLength;
             if (shouldSplitSegment) {
-                // Second: add the end part of the splitted segment
+                // Second: add the end part of the split segment
                 Segment segmentEndPart = new Segment(segment.text.substring(inSegmentOffset), segment.color, segment.modifiers);
-                combinedSegments.add(i + newSegments.size(), segmentEndPart);
+                combinedSegments.add(i + text.segments.size(), segmentEndPart);
             }
 
-            // Third: add the start part of the splitted segment
+            // Third: add the start part of the split segment
             if (offset - currentOffset > 0) {
                 Segment segmentStartPart =
                         new Segment(segment.text.substring(0, inSegmentOffset), segment.color, segment.modifiers);
@@ -359,54 +326,7 @@ public class RichText implements StringVisitable {
             break;
         }
 
-        combinedSegments = mergeSimilarStyledSegments(combinedSegments);
-        return new RichText(combinedSegments);
-    }
-
-    /**
-     * Creates the segments for the given string, applying formatting based on its content and location.
-     * <p>
-     * If the string contains formatting (e.g., color or modifiers), that formatting is preserved.
-     * If it does not contain formatting, the formatting from the start till end location is applied.
-     * Strings with only the RESET formatting tag are treated as non-formatted.
-     *
-     * @param start  the start of a formating selection range in the text
-     * @param end    the end of a formating selection range in the text
-     * @param string the string to be inserted, which may or may not contain formatting
-     * @return a list of {@link Segment} objects representing the formatted segments of the string
-     */
-    private List<Segment> createSegmentsWithLocalFormatting(int start, int end, String string) {
-        // A non-formatted string copied from the book will always contain the RESET formatting tag.
-        // We need to exclude this tag from the check to ensure
-        // that we can properly apply the existing text formatting
-        // ToDo change the logic of copying non-formatted string from a book to return string without any styles at all
-        boolean isFormattedString = !Formatting.strip(string)
-                .equals(string.replaceAll(Formatting.RESET.toString(), ""));
-
-        if (isFormattedString) {
-            // The isFormattedString check is required here,
-            // because RichText.fromFormattedString creates a RichText with Back color by default,
-            // instead of keeping the origin color(no color).
-            // ToDo make RichText.fromFormattedString return no color for non formatted strings
-            RichText richString = RichText.fromFormattedString(string);
-            return richString.getSegments();
-
-        } else {
-            // If the string does not contain formatting, apply formatting from the start-end range.
-
-            // Read formatting from the position just after the start offset when possible
-            // to get a more accurate formatting for cases where start != end.
-            int offsetToReadCurrentFormatting = Math.max(Math.min(start + 1, end), start);
-
-            Pair<@Nullable Formatting, Set<Formatting>> colorAndModifiersFromOffset =
-                    getCommonFormat(offsetToReadCurrentFormatting, offsetToReadCurrentFormatting);
-            Segment segmentWithFormatting = new Segment(
-                    string,
-                    Optional.ofNullable(colorAndModifiersFromOffset.getLeft()).orElse(Formatting.RESET),
-                    colorAndModifiersFromOffset.getRight()
-            );
-            return List.of(segmentWithFormatting);
-        }
+        return new RichText(combinedSegments).mergeSimilarSegments();
     }
 
     /**
@@ -608,6 +528,13 @@ public class RichText implements StringVisitable {
     @Override
     public String getString() {
         return this.getPlainText();
+    }
+
+    @Override
+    public String toString() {
+        return "RichText{" +
+                "segments=" + segments +
+                '}';
     }
 
     @Override
