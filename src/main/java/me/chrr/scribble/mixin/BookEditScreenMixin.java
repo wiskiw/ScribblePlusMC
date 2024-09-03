@@ -139,7 +139,6 @@ public abstract class BookEditScreenMixin extends Screen {
         super(title);
     }
 
-
     @Unique
     private String getRawClipboard() {
         // the original logic of BookEditScreen.getClipboard without Formatting.strip() call

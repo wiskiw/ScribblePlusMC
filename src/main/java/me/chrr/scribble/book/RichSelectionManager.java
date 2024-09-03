@@ -2,10 +2,13 @@ package me.chrr.scribble.book;
 
 import me.chrr.scribble.Scribble;
 import me.chrr.scribble.tool.AdvancedTextHandler;
+import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.client.util.SelectionManager;
 import net.minecraft.util.Formatting;
 import net.minecraft.util.Pair;
 import net.minecraft.util.Util;
+import net.replaceitem.symbolchat.SymbolChat;
+import net.replaceitem.symbolchat.resource.FontProcessor;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
@@ -66,6 +69,7 @@ public class RichSelectionManager extends SelectionManager {
 
     @Override
     public void insert(String string) {
+        string = tryToFormatStringWithSymbolChatFontProcessor(string);
         RichText text = this.textGetter.get();
 
         int start = Math.min(this.selectionStart, this.selectionEnd);
@@ -105,6 +109,35 @@ public class RichSelectionManager extends SelectionManager {
 
             updateSelectionFormatting();
         }
+    }
+
+    private String tryToFormatStringWithSymbolChatFontProcessor(String string) {
+        // The RichSelectionManager overrides SymbolChat's FontProcessingSelectionManager.
+        // That why we need to call logic of SymbolChat's SelectionManager manually.
+
+        // Check if SymbolChat mod present
+        if (FabricLoader.getInstance().isModLoaded(Scribble.COMPATIBLE_MOD_ID_SYMBOL_CHAT)) {
+            try {
+                // trying to call SymbolChat's font processor
+                FontProcessor fontProcessor = SymbolChat.fontManager.getCurrentScreenFontProcessor();
+                return fontProcessor.convertString(string);
+
+            } catch (NoClassDefFoundError noClassDefFoundError) {
+                String message = String.format(
+                        "The mod '%s' was loaded, but expected mod's classes were not found.",
+                        Scribble.COMPATIBLE_MOD_ID_SYMBOL_CHAT
+                );
+                Scribble.LOGGER.error(message, noClassDefFoundError);
+
+            } catch (Exception e) {
+                String message = String.format(
+                        "The mod '%s' was loaded, but unexpected error happened.",
+                        Scribble.COMPATIBLE_MOD_ID_SYMBOL_CHAT
+                );
+                Scribble.LOGGER.error(message, e);
+            }
+        }
+        return string;
     }
 
     @Override
