@@ -1,35 +1,38 @@
 {
-    "schemaVersion": 1,
-    "id": "scribble",
-    "version": "${modVersion}",
-    "name": "${modName}",
-    "description": "Expertly edit your books with rich formatting options, page utilities and more!",
-    "authors": [
-        "chrrrs"
-    ],
-    "contact": {
-        "homepage": "https://modrinth.com/mod/scribble",
-        "sources": "https://github.com/chrrs/scribble",
-        "issues": "https://github.com/chrrs/scribble/issues"
-    },
-    "license": "MIT",
-    "icon": "assets/scribble/icon.png",
-    "accessWidener": "scribble.accesswidener",
-    "mixins": [
-        {
-            "config": "scribble.mixins.json",
-            "environment": "client"
-        }
-    ],
-    "environment": "client",
-    "entrypoints": {
-        "client": [
-            "me.chrr.scribble.Scribble"
-        ]
-    },
-    "depends": {
-        "minecraft": "${minecraftDependency}",
-        "fabricloader": ">=0.14",
-        "fabric-resource-loader-v0": "*"
+  "schemaVersion": 1,
+  "id": "scribble",
+  "version": "${modVersion}",
+  "name": "${modName}",
+  "description": "Expertly edit your books with rich formatting options, page utilities and more!",
+  "authors": [
+    "chrrrs"
+  ],
+  "contact": {
+    "homepage": "https://modrinth.com/mod/scribble",
+    "sources": "https://github.com/chrrs/scribble",
+    "issues": "https://github.com/chrrs/scribble/issues"
+  },
+  "license": "MIT",
+  "icon": "assets/scribble/icon.png",
+  "accessWidener": "scribble.accesswidener",
+  "mixins": [
+    {
+      "config": "scribble.mixins.json",
+      "environment": "client"
     }
+  ],
+  "environment": "client",
+  "entrypoints": {
+    "client": [
+      "me.chrr.scribble.Scribble"
+    ],
+    "modmenu": [
+      "me.chrr.scribble.ModMenuIntegration"
+    ]
+  },
+  "depends": {
+    "minecraft": "${minecraftDependency}",
+    "fabricloader": ">=0.14",
+    "fabric-resource-loader-v0": "*"
+  }
 }

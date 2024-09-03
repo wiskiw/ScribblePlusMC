@@ -1,7 +1,7 @@
 import me.modmuss50.mpp.ReleaseType
 
 plugins {
-    id("fabric-loom") version "1.6-SNAPSHOT"
+    id("fabric-loom") version "1.7-SNAPSHOT"
     id("me.modmuss50.mod-publish-plugin") version "0.5.1"
 }
 
@@ -27,6 +27,10 @@ loom {
 }
 
 repositories {
+    maven("https://maven.shedaniel.me/") // Cloth Config
+    maven("https://maven.terraformersmc.com/releases/") // Cloth Config
+    maven("https://maven.terraformersmc.com/") // Mod Menu
+    maven("https://maven.nucleoid.xyz/") // Placeholder API (required for some Mod Menu versions)
 }
 
 dependencies {
@@ -36,6 +40,12 @@ dependencies {
     minecraft("com.mojang:minecraft:$minecraftVersion")
     mappings("net.fabricmc:yarn:${prop("fabric", "yarnVersion")}:v2")
     modImplementation("net.fabricmc:fabric-loader:${prop("fabric", "loaderVersion")}")
+
+    modImplementation("me.shedaniel.cloth:cloth-config-fabric:${prop("clothConfig", "version")}") { exclude("net.fabricmc.fabric-api") }
+        .also { include(it) } // that users don't have to download it manually
+
+    modImplementation("com.terraformersmc:modmenu:${prop("modMenu", "version")}") { exclude("net.fabricmc.fabric-api") }
+    implementation("com.google.code.gson:gson:2.11.0") // json encoding/decoding
 
     include(fabricApiModule("fabric-resource-loader-v0")!!)
 

@@ -484,7 +484,7 @@ public abstract class BookEditScreenMixin extends Screen {
 
     @Inject(method = "selectCurrentWord", at = @At(value = "HEAD"), cancellable = true)
     private void selectCurrentWord(int cursor, CallbackInfo ci) {
-        if (Scribble.isAdvancedSelectionEnabled){
+        if (Scribble.config.isAdvancedCursorMovementEnabled()){
             // original Minecraft selectCurrentWord() implementation with custom moveCursorByWords() call
             String string = this.getCurrentPageContent();
             getRichSelectionManager().setSelection(

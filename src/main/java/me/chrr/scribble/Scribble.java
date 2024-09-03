@@ -1,5 +1,7 @@
 package me.chrr.scribble;
 
+import me.chrr.scribble.data.ModConfigIO;
+import me.chrr.scribble.model.ModConfig;
 import net.fabricmc.api.ClientModInitializer;
 import net.fabricmc.loader.api.FabricLoader;
 import net.minecraft.util.Identifier;
@@ -11,7 +13,8 @@ public class Scribble implements ClientModInitializer {
     public static Logger LOGGER = LogManager.getLogger();
 
     public static boolean shouldCenter = false;
-    public static boolean isAdvancedSelectionEnabled = false;
+
+    public static ModConfig config = ModConfigIO.read();
 
     @Override
     public void onInitializeClient() {
