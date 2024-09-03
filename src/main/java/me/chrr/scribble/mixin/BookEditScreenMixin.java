@@ -8,6 +8,7 @@ import me.chrr.scribble.book.*;
 import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
+import me.chrr.scribble.tool.AdvancedTextHandler;
 import net.minecraft.client.font.TextHandler;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
@@ -25,7 +26,10 @@ import org.apache.commons.lang3.mutable.MutableInt;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.*;
-import org.spongepowered.asm.mixin.injection.*;
+import org.spongepowered.asm.mixin.injection.At;
+import org.spongepowered.asm.mixin.injection.Inject;
+import org.spongepowered.asm.mixin.injection.ModifyArg;
+import org.spongepowered.asm.mixin.injection.Redirect;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
@@ -94,6 +98,9 @@ public abstract class BookEditScreenMixin extends Screen {
 
     @Shadow
     protected abstract void updateButtons();
+
+    @Shadow
+    protected abstract String getCurrentPageContent();
     //endregion
 
     // List of text on the pages of the book. This replaces the usual
@@ -472,6 +479,19 @@ public abstract class BookEditScreenMixin extends Screen {
         if (mouseX < (this.width - 152) / 2.0 || mouseX > (this.width + 152) / 2.0) {
             cir.setReturnValue(true);
             cir.cancel();
+        }
+    }
+
+    @Inject(method = "selectCurrentWord", at = @At(value = "HEAD"), cancellable = true)
+    private void selectCurrentWord(int cursor, CallbackInfo ci) {
+        if (Scribble.config.isAdvancedCursorMovementEnabled()){
+            // original Minecraft selectCurrentWord() implementation with custom moveCursorByWords() call
+            String string = this.getCurrentPageContent();
+            getRichSelectionManager().setSelection(
+                    AdvancedTextHandler.moveCursorByWords(string, -1, cursor),
+                    AdvancedTextHandler.moveCursorByWords(string, 1, cursor)
+            );
+            ci.cancel();
         }
     }
 
