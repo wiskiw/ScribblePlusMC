@@ -1,16 +1,17 @@
 {
     "schemaVersion": 1,
-    "id": "scribble",
+    "id": "scribble-plus",
     "version": "${modVersion}",
     "name": "${modName}",
-    "description": "Expertly edit your books with rich formatting options, page utilities and more!",
+    "description": "Helps to edit your books with rich formatting options, page utilities and more! The Scribble Mod with some additional tweaks.",
     "authors": [
-        "chrrrs"
+        "chrrrs",
+        "WiskiWiski"
     ],
     "contact": {
-        "homepage": "https://modrinth.com/mod/scribble",
-        "sources": "https://github.com/chrrs/scribble",
-        "issues": "https://github.com/chrrs/scribble/issues"
+        "homepage": "https://github.com/wiskiw/ScribblePlusMC",
+        "sources": "https://github.com/wiskiw/ScribblePlusMC",
+        "issues": "https://github.com/wiskiw/ScribblePlusMC/issues"
     },
     "license": "MIT",
     "icon": "assets/scribble/icon.png",
