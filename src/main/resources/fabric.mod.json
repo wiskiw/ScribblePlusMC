@@ -14,7 +14,7 @@
         "issues": "https://github.com/wiskiw/ScribblePlusMC/issues"
     },
     "license": "MIT",
-    "icon": "assets/scribble/icon.png",
+    "icon": "assets/scribble-plus/icon.png",
     "accessWidener": "scribble.accesswidener",
     "mixins": [
         {
