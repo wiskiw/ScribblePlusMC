@@ -12,7 +12,6 @@ import net.replaceitem.symbolchat.resource.FontProcessor;
 import org.jetbrains.annotations.Nullable;
 
 import java.util.HashSet;
-import java.util.Optional;
 import java.util.Set;
 import java.util.function.Consumer;
 import java.util.function.Predicate;
@@ -20,18 +19,26 @@ import java.util.function.Supplier;
 
 public class RichSelectionManager extends SelectionManager {
 
-    public static final Formatting DEFAULT_COLOR = Formatting.BLACK;
-
     private final Supplier<RichText> textGetter;
     private final Consumer<RichText> textSetter;
     private final Predicate<RichText> textFilter;
     private final StateCallback stateCallback;
 
-    @Nullable
-    private Formatting color = DEFAULT_COLOR;
-    private Set<Formatting> modifiers = new HashSet<>();
+    private final Supplier<Formatting> colorGetter;
+    private final Supplier<Set<Formatting>> modifiersGetter;
 
-    public RichSelectionManager(Supplier<RichText> textGetter, Consumer<RichText> textSetter, Consumer<String> stringSetter, StateCallback stateCallback, Supplier<String> clipboardGetter, Consumer<String> clipboardSetter, Predicate<RichText> textFilter) {
+    public RichSelectionManager(
+            Supplier<RichText> textGetter,
+            Consumer<RichText> textSetter,
+            Consumer<String> stringSetter,
+            StateCallback stateCallback,
+            Supplier<String> clipboardGetter,
+            Consumer<String> clipboardSetter,
+            Predicate<RichText> textFilter,
+
+            Supplier<Formatting> colorGetter,
+            Supplier<Set<Formatting>> modifiersGetter
+    ) {
         super(
                 () -> textGetter.get().getPlainText(),
                 (text) -> Scribble.LOGGER.warn("stringSetter called with \"{}\"", text),
@@ -47,10 +54,12 @@ public class RichSelectionManager extends SelectionManager {
             textSetter.accept(text);
             stringSetter.accept(text.getAsFormattedString());
         };
-    }
 
-    private Formatting getSelectedColor() {
-        return Optional.ofNullable(this.color).orElse(DEFAULT_COLOR);
+        this.colorGetter = colorGetter;
+        this.modifiersGetter = modifiersGetter;
+
+        // notify about changes after getting initial text
+        notifyCursorFormattingChanged();
     }
 
     @Override
@@ -88,7 +97,7 @@ public class RichSelectionManager extends SelectionManager {
         } else {
             // We strip any leftover RESET tags from the string.
             string = string.replaceAll(Formatting.RESET.toString(), "");
-            insertion = new RichText(string, getSelectedColor(), modifiers);
+            insertion = new RichText(string, colorGetter.get(), modifiersGetter.get());
         }
 
         // If no text is selected, we can just insert instead of replace.
@@ -107,7 +116,7 @@ public class RichSelectionManager extends SelectionManager {
             int newCursorPosition = Math.min(text.getPlainText().length(), start + plaintStringToInsert.length());
             this.selectionEnd = this.selectionStart = newCursorPosition;
 
-            updateSelectionFormatting();
+            notifyCursorFormattingChanged();
         }
     }
 
@@ -159,7 +168,7 @@ public class RichSelectionManager extends SelectionManager {
         }
 
         this.textSetter.accept(text);
-        updateSelectionFormatting();
+        notifyCursorFormattingChanged();
     }
 
     @Override
@@ -184,11 +193,11 @@ public class RichSelectionManager extends SelectionManager {
         this.insert(this.clipboardGetter.get());
     }
 
-    public void setColor(Formatting color) {
+    public void applyColorForSelection(Formatting color) {
         this.applyFormatting(color, Set.of(), Set.of());
     }
 
-    public void toggleModifier(Formatting modifier, boolean toggled) {
+    public void toggleModifierForSelection(Formatting modifier, boolean toggled) {
         if (toggled) {
             this.applyFormatting(null, Set.of(modifier), Set.of());
         } else {
@@ -208,48 +217,35 @@ public class RichSelectionManager extends SelectionManager {
             RichText text = this.textGetter.get()
                     .applyFormatting(start, end, newColor, addModifiers, removeModifiers);
             this.textSetter.accept(text);
-        } else {
-            if (newColor != null) {
-                this.color = newColor;
-            }
-
-            this.modifiers.addAll(addModifiers);
-            this.modifiers.removeAll(removeModifiers);
         }
     }
 
-    public void updateSelectionFormatting() {
+    private void notifyCursorFormattingChanged() {
         if (this.textGetter == null) {
             // We're too early, abort.
+            // Can happen when the methods is called from the supper constructor
             return;
         }
 
         int start = Math.min(this.selectionStart, this.selectionEnd);
         int end = Math.max(this.selectionStart, this.selectionEnd);
-        Pair<Formatting, Set<Formatting>> format = this.textGetter.get().getCommonFormat(start, end);
+        Pair<@Nullable Formatting, Set<Formatting>> format = this.textGetter.get().getCommonFormat(start, end);
 
-        this.color = format.getLeft();
-        this.modifiers = new HashSet<>(format.getRight());
-
-        this.stateCallback.update(this.color, this.modifiers);
+        Formatting color = format.getLeft();
+        Set<Formatting> modifiers = new HashSet<>(format.getRight());
+        stateCallback.onCursorFormattingChanged(color, modifiers);
     }
 
     @Override
     public void setSelection(int start, int end) {
         super.setSelection(start, end);
-        updateSelectionFormatting();
+        notifyCursorFormattingChanged();
     }
 
     @Override
     public void selectAll() {
         super.selectAll();
-        updateSelectionFormatting();
-    }
-
-    @Override
-    protected void updateSelectionRange(boolean shiftDown) {
-        super.updateSelectionRange(shiftDown);
-        updateSelectionFormatting();
+        notifyCursorFormattingChanged();
     }
 
     @Override
@@ -282,9 +278,10 @@ public class RichSelectionManager extends SelectionManager {
         }
     }
 
-    @Nullable
-    public Formatting getColor() {
-        return color;
+    @Override
+    protected void updateSelectionRange(boolean shiftDown) {
+        super.updateSelectionRange(shiftDown);
+        notifyCursorFormattingChanged();
     }
 
     public void copyWithoutFormatting() {
@@ -301,6 +298,14 @@ public class RichSelectionManager extends SelectionManager {
     }
 
     public interface StateCallback {
-        void update(@Nullable Formatting color, Set<Formatting> modifiers);
+        /**
+         * Called when the cursor position or selection range changes,
+         * which may result in a different text color or modifiers being applied at the new cursor position.
+         *
+         * @param color     The formatting color at the new cursor position,
+         *                  or null if multiple are colors applied to the selected range.
+         * @param modifiers The set of formatting modifiers applied at the new cursor position/to selected range.
+         */
+        void onCursorFormattingChanged(@Nullable Formatting color, Set<Formatting> modifiers);
     }
 }
