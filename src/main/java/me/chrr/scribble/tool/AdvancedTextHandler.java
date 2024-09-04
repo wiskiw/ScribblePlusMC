@@ -22,8 +22,11 @@ public class AdvancedTextHandler {
     }
 
     private static int moveCursorByWordsToTheLeft(String text, int words, int cursor) {
-        // Regex to match words and punctuation groups for moving cursor to the left
-        String regex = "([\\p{L}\\p{M}\\p{N}_]+\\s*)|(\\p{P}+\\s*)";
+        // Regex to match groups of characters between which cursor should move when going to the left
+        // The First Group Selector - for punctuation and other unicode char: "!@#,.₽₽".
+        // This behavior is still not really consist between different text edit programs/input fields
+        // The Second Group Selector - for everything that not inside the first group that
+        String regex = "([\\p{P}\\p{S}]+\\s*)|([^\\p{P}\\p{S}\\s]+\\s*)";
 
         List<String> textGroups = findGroups(text, regex);
 
@@ -58,8 +61,11 @@ public class AdvancedTextHandler {
             return text.length();
         }
 
-        // Regex to match words and punctuation groups for moving cursor to the right.
-        String regex = "(\\s*[\\p{L}\\p{M}\\p{N}_]+)|(\\s*\\p{P}+)";
+        // Regex to match groups of characters between which cursor should move when going to the right
+        // The First Group Selector - for punctuation and other unicode char: "!@#,.₽₽".
+        // This behavior is still not really consist between different text edit programs/input fields
+        // The Second Group Selector - for everything that not inside the first group that
+        String regex = "(\\s*[\\p{P}\\p{S}]+)|(\\s*[^\\p{P}\\p{S}\\s]+)";
         List<String> textGroups = findGroups(text, regex);
 
         int currentIndex = 0;

@@ -117,6 +117,16 @@ public class AdvancedMoveCursorByWordsTest {
         assertEquals(0, newPosition);
     }
 
+    @Test
+    public void testMoveCursorToTheLeftCase11() {
+        String text = "Hello ⁘⁘⁘rld!!!"; // testing unicode chars
+        int cursor = text.indexOf("!!!");
+
+        int newPosition = AdvancedTextHandler.moveCursorByWords(text, -1, cursor);
+
+        assertEquals(text.indexOf("rld!!!"), newPosition);
+    }
+
     // ==========================================================================================================================
 
     @Test
@@ -197,5 +207,15 @@ public class AdvancedMoveCursorByWordsTest {
         int newPosition = AdvancedTextHandler.moveCursorByWords(text, Integer.MAX_VALUE, cursor);
 
         assertEquals(text.length(), newPosition);
+    }
+
+    @Test
+    public void testMoveCursorToTheRightCase9() {
+        String text = "Hello₽₽⁘⁘⁘, rld!!!"; // testing unicode chars
+        int cursor = text.indexOf("llo⁘⁘⁘, rld!!!");
+
+        int newPosition = AdvancedTextHandler.moveCursorByWords(text, +1, cursor);
+
+        assertEquals(text.indexOf("₽₽⁘⁘⁘, rld!!!"), newPosition);
     }
 }
