@@ -9,7 +9,7 @@ public class ModMenuIntegration implements ModMenuApi {
 
     @Override
     public ConfigScreenFactory<?> getModConfigScreenFactory() {
-        if (FabricLoader.getInstance().isModLoaded("cloth-config")) {
+        if (FabricLoader.getInstance().isModLoaded(Scribble.COMPATIBLE_MOD_ID_CLOTH_CONFIG)) {
             return parent -> ConfigScreenBuilder.create().build(parent);
         } else {
             return null;

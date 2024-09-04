@@ -9,6 +9,11 @@ import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
 import me.chrr.scribble.tool.AdvancedTextHandler;
+import me.chrr.scribble.model.BookEditScreenMemento;
+import me.chrr.scribble.model.command.*;
+import me.chrr.scribble.tool.Restorable;
+import me.chrr.scribble.tool.commandmanager.Command;
+import me.chrr.scribble.tool.commandmanager.CommandManager;
 import net.minecraft.client.font.TextHandler;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
@@ -23,6 +28,7 @@ import net.minecraft.util.Formatting;
 import net.minecraft.util.Hand;
 import org.apache.commons.lang3.mutable.MutableBoolean;
 import org.apache.commons.lang3.mutable.MutableInt;
+import org.jetbrains.annotations.NotNull;
 import org.jetbrains.annotations.Nullable;
 import org.lwjgl.glfw.GLFW;
 import org.spongepowered.asm.mixin.*;
@@ -34,13 +40,18 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfo;
 import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 
 import java.nio.file.Path;
-import java.util.ArrayList;
-import java.util.List;
-import java.util.ListIterator;
-import java.util.Set;
+import java.util.*;
 
 @Mixin(BookEditScreen.class)
-public abstract class BookEditScreenMixin extends Screen {
+public abstract class BookEditScreenMixin extends Screen
+        implements PagesListener, Restorable<BookEditScreenMemento> {
+
+    @Unique
+    private static final int BOOK_EDIT_HISTORY_SIZE = 30;
+
+    @Unique
+    private static final int MAX_PAGES_NUMBER = 100;
+
     @Unique
     private static final Formatting[] COLORS = new Formatting[]{
             Formatting.BLACK, Formatting.DARK_GRAY,
@@ -52,6 +63,9 @@ public abstract class BookEditScreenMixin extends Screen {
             Formatting.DARK_BLUE, Formatting.BLUE,
             Formatting.DARK_PURPLE, Formatting.LIGHT_PURPLE,
     };
+
+    @Unique
+    private static final Formatting DEFAULT_COLOR = Formatting.BLACK;
 
     //region @Shadow declarations
     @Mutable
@@ -109,6 +123,16 @@ public abstract class BookEditScreenMixin extends Screen {
     private final List<RichText> richPages = new ArrayList<>();
 
     @Unique
+    private final CommandManager commandManager = new CommandManager(BOOK_EDIT_HISTORY_SIZE);
+
+    @Unique
+    @NotNull
+    private Formatting activeColor = DEFAULT_COLOR;
+
+    @Unique
+    private Set<Formatting> activeModifiers = new HashSet<>();
+
+    @Unique
     private ModifierButtonWidget boldButton;
     @Unique
     private ModifierButtonWidget italicButton;
@@ -120,7 +144,7 @@ public abstract class BookEditScreenMixin extends Screen {
     private ModifierButtonWidget obfuscatedButton;
 
     @Unique
-    private List<ColorSwatchWidget> colorSwatches;
+    private List<ColorSwatchWidget> colorSwatches = List.of();
 
     @Unique
     private IconButtonWidget deletePageButton;
@@ -138,7 +162,6 @@ public abstract class BookEditScreenMixin extends Screen {
     protected BookEditScreenMixin(Text title) {
         super(title);
     }
-
 
     @Unique
     private String getRawClipboard() {
@@ -197,27 +220,26 @@ public abstract class BookEditScreenMixin extends Screen {
         }
 
         // Modifier buttons
-        // They're all toggled off by default, this is fixed in #initScreen.
-        boldButton = addDrawableChild(new ModifierButtonWidget(
-                Text.translatable("text.scribble.modifier.bold"),
-                (toggled) -> this.getRichSelectionManager().toggleModifier(Formatting.BOLD, toggled),
-                x, y, 0, 0, 22, 19, false));
-        italicButton = addDrawableChild(new ModifierButtonWidget(
-                Text.translatable("text.scribble.modifier.italic"),
-                (toggled) -> this.getRichSelectionManager().toggleModifier(Formatting.ITALIC, toggled),
-                x, y + 19, 0, 19, 22, 17, false));
-        underlineButton = addDrawableChild(new ModifierButtonWidget(
-                Text.translatable("text.scribble.modifier.underline"),
-                (toggled) -> this.getRichSelectionManager().toggleModifier(Formatting.UNDERLINE, toggled),
-                x, y + 36, 0, 36, 22, 17, false));
-        strikethroughButton = addDrawableChild(new ModifierButtonWidget(
-                Text.translatable("text.scribble.modifier.strikethrough"),
-                (toggled) -> this.getRichSelectionManager().toggleModifier(Formatting.STRIKETHROUGH, toggled),
-                x, y + 53, 0, 53, 22, 17, false));
-        obfuscatedButton = addDrawableChild(new ModifierButtonWidget(
-                Text.translatable("text.scribble.modifier.obfuscated"),
-                (toggled) -> this.getRichSelectionManager().toggleModifier(Formatting.OBFUSCATED, toggled),
-                x, y + 70, 0, 70, 22, 18, false));
+        boldButton = addModifierButton(
+                Formatting.BOLD,
+                Text.translatable("text.scribble.modifier.bold"), x, y, 0, 0, 22, 19
+        );
+        italicButton = addModifierButton(
+                Formatting.ITALIC,
+                Text.translatable("text.scribble.modifier.italic"), x, y + 19, 0, 19, 22, 17
+        );
+        underlineButton = addModifierButton(
+                Formatting.UNDERLINE,
+                Text.translatable("text.scribble.modifier.underline"), x, y + 36, 0, 36, 22, 17
+        );
+        strikethroughButton = addModifierButton(
+                Formatting.STRIKETHROUGH,
+                Text.translatable("text.scribble.modifier.strikethrough"), x, y + 53, 0, 53, 22, 17
+        );
+        obfuscatedButton = addModifierButton(
+                Formatting.OBFUSCATED,
+                Text.translatable("text.scribble.modifier.obfuscated"), x, y + 70, 0, 70, 22, 18
+        );
 
         // Color swatches
         colorSwatches = new ArrayList<>(COLORS.length);
@@ -227,14 +249,14 @@ public abstract class BookEditScreenMixin extends Screen {
             int dx = (i % 2) * 8;
             int dy = (i / 2) * 8;
 
-            ColorSwatchWidget widget = addDrawableChild(new ColorSwatchWidget(
+            ColorSwatchWidget swatch = new ColorSwatchWidget(
                     Text.translatable("text.scribble.color." + color.getName()), color,
-                    () -> {
-                        this.getRichSelectionManager().setColor(color);
-                        this.setSwatchColor(color);
-                    }, x + 3 + dx, y + 95 + dy, 8, 8
-            ));
+                    () -> changeActiveColor(color),
+                    x + 3 + dx, y + 95 + dy, 8, 8
+            );
+            swatch.setToggled(activeColor == color);
 
+            ColorSwatchWidget widget = addDrawableChild(swatch);
             colorSwatches.add(widget);
         }
 
@@ -261,6 +283,18 @@ public abstract class BookEditScreenMixin extends Screen {
                 fx, y + 18 + 2, 44, 109, 18, 18));
     }
 
+    @Unique
+    private ModifierButtonWidget addModifierButton(Formatting modifier, Text tooltip,
+                                                   int x, int y, int u, int v, int width, int height) {
+        ModifierButtonWidget button = new ModifierButtonWidget(
+                tooltip,
+                (toggled) -> toggleActiveModifier(modifier, toggled),
+                x, y, u, v, width, height,
+                activeModifiers.contains(modifier)
+        );
+        return addDrawableChild(button);
+    }
+
     @Inject(method = "<init>", at = @At(value = "TAIL"))
     public void init(PlayerEntity player, ItemStack itemStack, Hand hand, CallbackInfo ci) {
         // Replace the selection manager with our own
@@ -268,11 +302,14 @@ public abstract class BookEditScreenMixin extends Screen {
                 this::getCurrentPageText,
                 this::setPageText,
                 (string) -> this.pages.set(this.currentPage, string),
-                this::updateState,
+                this::onCursorFormattingChanged,
                 this::getRawClipboard,
                 this::setClipboard,
                 text -> text.getAsFormattedString().length() < 1024
-                        && this.textRenderer.getWrappedLinesHeight(text, 114) <= 128
+                        && this.textRenderer.getWrappedLinesHeight(text, 114) <= 128,
+
+                () -> this.activeColor,
+                () -> this.activeModifiers
         );
 
         // Load the pages into richPages
@@ -281,48 +318,87 @@ public abstract class BookEditScreenMixin extends Screen {
         }
     }
 
+    @Unique
+    private void changeActiveColor(@NotNull Formatting color) {
+        if (this.activeColor == color) {
+            return;
+        }
+
+        Command command = new ActionCommand<>(this, () -> {
+            activeColor = color;
+            invalidateFormattingButtons();
+            getRichSelectionManager().applyColorForSelection(color);
+        });
+        commandManager.execute(command);
+    }
+
+    @Unique
+    public void toggleActiveModifier(Formatting modifier, boolean toggled) {
+        if (toggled) {
+            activeModifiers.add(modifier);
+        } else {
+            activeModifiers.remove(modifier);
+        }
+        invalidateFormattingButtons();
+
+        // ToDo replace with manager.applyModifiersForSelection(activeModifiers) call
+        //  to have the single state of truth for activeModifiers.
+        getRichSelectionManager().toggleModifierForSelection(modifier, toggled);
+    }
+
     @Inject(method = "init", at = @At(value = "HEAD"))
     private void initScreen(CallbackInfo ci) {
         initButtons();
-
-        // We need to update the states of all the buttons again.
-        this.getRichSelectionManager().updateSelectionFormatting();
     }
 
     @Inject(method = "updateButtons", at = @At(value = "HEAD"))
     private void updateButtons(CallbackInfo ci) {
-        this.boldButton.visible = !this.signing;
-        this.italicButton.visible = !this.signing;
-        this.underlineButton.visible = !this.signing;
-        this.strikethroughButton.visible = !this.signing;
-        this.obfuscatedButton.visible = !this.signing;
+        Optional.ofNullable(boldButton).ifPresent(button -> button.visible = !this.signing);
+        Optional.ofNullable(italicButton).ifPresent(button -> button.visible = !this.signing);
+        Optional.ofNullable(underlineButton).ifPresent(button -> button.visible = !this.signing);
+        Optional.ofNullable(strikethroughButton).ifPresent(button -> button.visible = !this.signing);
+        Optional.ofNullable(obfuscatedButton).ifPresent(button -> button.visible = !this.signing);
 
         for (ColorSwatchWidget swatch : colorSwatches) {
-            swatch.visible = !this.signing;
+            if (swatch != null) {
+                swatch.visible = !signing;
+            }
         }
 
-        this.deletePageButton.visible = !this.signing && this.richPages.size() > 1;
-        this.insertPageButton.visible = !this.signing;
+        Optional.ofNullable(deletePageButton).ifPresent(button -> button.visible = !signing && richPages.size() > 1);
+        Optional.ofNullable(insertPageButton).ifPresent(button ->
+                button.visible = !signing && richPages.size() < MAX_PAGES_NUMBER
+        );
 
-        this.saveBookButton.visible = !this.signing;
-        this.loadBookButton.visible = !this.signing;
+        Optional.ofNullable(saveBookButton).ifPresent(button -> button.visible = !signing);
+        Optional.ofNullable(loadBookButton).ifPresent(button -> button.visible = !signing);
     }
 
     @Unique
-    private void updateState(@Nullable Formatting color, Set<Formatting> modifiers) {
-        boldButton.toggled = modifiers.contains(Formatting.BOLD);
-        italicButton.toggled = modifiers.contains(Formatting.ITALIC);
-        underlineButton.toggled = modifiers.contains(Formatting.UNDERLINE);
-        strikethroughButton.toggled = modifiers.contains(Formatting.STRIKETHROUGH);
-        obfuscatedButton.toggled = modifiers.contains(Formatting.OBFUSCATED);
-        setSwatchColor(color);
+    private void invalidateFormattingButtons() {
+        Optional.ofNullable(boldButton).ifPresent(button -> button.toggled = activeModifiers.contains(Formatting.BOLD));
+        Optional.ofNullable(italicButton).ifPresent(button -> button.toggled = activeModifiers.contains(Formatting.ITALIC));
+        Optional.ofNullable(underlineButton).ifPresent(button -> button.toggled = activeModifiers.contains(Formatting.UNDERLINE));
+        Optional.ofNullable(strikethroughButton).ifPresent(button -> button.toggled = activeModifiers.contains(Formatting.STRIKETHROUGH));
+        Optional.ofNullable(obfuscatedButton).ifPresent(button -> button.toggled = activeModifiers.contains(Formatting.OBFUSCATED));
+        setSwatchColor(activeColor);
     }
 
     @Unique
     private void setSwatchColor(Formatting color) {
         for (ColorSwatchWidget swatch : colorSwatches) {
-            swatch.setToggled(swatch.getColor() == color);
+            if (swatch != null) {
+                swatch.setToggled(swatch.getColor() == color);
+            }
         }
+    }
+
+    @Unique
+    private void onCursorFormattingChanged(@Nullable Formatting color, Set<Formatting> modifiers) {
+        this.activeColor = color != null ? color : DEFAULT_COLOR;
+        this.activeModifiers = modifiers;
+
+        invalidateFormattingButtons();
     }
 
     /**
@@ -374,6 +450,7 @@ public abstract class BookEditScreenMixin extends Screen {
 
             this.richPages.clear();
             this.pages.clear();
+            commandManager.clear();
 
             // Loading an empty book file would set the total amount of pages to 0.
             // We work around this by just inserting a new empty page.
@@ -399,24 +476,15 @@ public abstract class BookEditScreenMixin extends Screen {
 
     @Unique
     private void deletePage() {
-        this.richPages.remove(this.currentPage);
-        this.pages.remove(this.currentPage);
-        this.dirty = true;
-
-        this.currentPage = Math.min(this.currentPage, this.richPages.size() - 1);
-        this.updateButtons();
-        this.changePage();
+        Command command = new DeletePageCommand(richPages, pages, currentPage, this);
+        commandManager.execute(command);
     }
 
     @Unique
     private void insertPage() {
-        if (this.richPages.size() < 100) {
-            this.richPages.add(this.currentPage, RichText.empty());
-            this.pages.add(this.currentPage, "");
-            this.dirty = true;
-
-            this.updateButtons();
-            this.changePage();
+        if (this.richPages.size() < MAX_PAGES_NUMBER) {
+            Command command = new InsertPageCommand(richPages, pages, currentPage, this);
+            commandManager.execute(command);
         }
     }
 
@@ -503,9 +571,34 @@ public abstract class BookEditScreenMixin extends Screen {
         }
     }
 
-    @Inject(method = "appendNewPage", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z"))
+    @Inject(method = "appendNewPage", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z"), cancellable = true)
     private void appendNewPage(CallbackInfo ci) {
-        richPages.add(RichText.empty());
+        Command command = new InsertPageCommand(richPages, pages, richPages.size(), this);
+        commandManager.execute(command);
+        ci.cancel();
+    }
+
+    @Override
+    public void scribble$onPageAdded(int pageAddedIndex) {
+        currentPage = pageAddedIndex;
+        dirty = true;
+        updateButtons();
+        changePage();
+    }
+
+    @Override
+    public void scribble$onPageRemoved(int pageRemovedIndex) {
+        if (pageRemovedIndex < currentPage) {
+            // a page before opened was removed
+            // move the index to the left by 1 to keep the same page opened
+            currentPage = Math.max(0, pageRemovedIndex - 1);
+        } else if (currentPage >= richPages.size()) {
+            // the last page was opened before removing
+            currentPage = Math.max(0, richPages.size() - 1);
+        }
+        dirty = true;
+        updateButtons();
+        changePage();
     }
 
     /**
@@ -517,31 +610,91 @@ public abstract class BookEditScreenMixin extends Screen {
         Scribble.LOGGER.warn("setPageContent() was called, but ignored.");
     }
 
+    @Inject(method = "charTyped", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/SelectionManager;insert(Ljava/lang/String;)V"), cancellable = true)
+    private void charTypedEditMode(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
+        Command command = new InsertTextCommand<>(this, currentPageSelectionManager, Character.toString(chr));
+        commandManager.execute(command);
+        cir.setReturnValue(true);
+        cir.cancel();
+    }
+
     @Inject(method = "keyPressedEditMode", at = @At(value = "HEAD"), cancellable = true)
     private void keyPressedEditMode(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        // Copy/cut/paste without formatting when SHIFT is held down.
-        if (hasControlDown() && hasShiftDown() && !hasAltDown()) {
-            if (keyCode == GLFW.GLFW_KEY_C) {
-                this.getRichSelectionManager().copyWithoutFormatting();
-            } else if (keyCode == GLFW.GLFW_KEY_X) {
-                this.getRichSelectionManager().cutWithoutFormatting();
-            } else if (keyCode == GLFW.GLFW_KEY_V) {
-                this.getRichSelectionManager().pasteWithoutFormatting();
+        // Override copy-without-formatting shortcut
+        if (hasControlDown() && hasShiftDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_C) {
+            getRichSelectionManager().copyWithoutFormatting();
+            cir.setReturnValue(true);
+            cir.cancel();
+            return;
+        }
+
+        // Override CUT and CUT-without-formatting shortcut
+        if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_X) {
+            Command command = new ActionCommand<>(this, () -> {
+                if (hasShiftDown()) {
+                    getRichSelectionManager().cutWithoutFormatting();
+                } else {
+                    getRichSelectionManager().cut();
+                }
+            });
+            commandManager.execute(command);
+            cir.setReturnValue(true);
+            cir.cancel();
+            return;
+        }
+
+        // Override PASTE and PASTE-without-formatting shortcut
+        if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_V) {
+            // ToDo try to find more elegant way how to implement PASTE command
+            //  which won't use internal selectionManager.paste/pasteWithoutFormatting() implementation
+            String textToPaste = hasShiftDown() ? Formatting.strip(getRawClipboard()) : getRawClipboard();
+            Command command = new InsertTextCommand<>(this, getRichSelectionManager(), textToPaste);
+            commandManager.execute(command);
+            cir.setReturnValue(true);
+            cir.cancel();
+            return;
+        }
+
+        // Inject hotkeys for Undo and Redo
+        if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_Z) {
+            if (hasShiftDown()) {
+                commandManager.tryRedo();
+            } else {
+                commandManager.tryUndo();
             }
+
+            cir.setReturnValue(true);
+            cir.cancel();
+            return;
+        }
+
+        // Override DELETE action
+        if (keyCode == GLFW.GLFW_KEY_DELETE || keyCode == GLFW.GLFW_KEY_BACKSPACE) {
+            SelectionManager.SelectionType selectionType = Screen.hasControlDown()
+                    ? SelectionManager.SelectionType.WORD
+                    : SelectionManager.SelectionType.CHARACTER;
+
+            Command command = new ActionCommand<>(this,
+                    () -> getRichSelectionManager().delete(-1, selectionType));
+            commandManager.execute(command);
+
+            cir.setReturnValue(true);
+            cir.cancel();
+            return;
         }
 
         // We inject some hotkeys for toggling formatting options.
         if (hasControlDown() && !hasShiftDown() && !hasAltDown()) {
             if (keyCode == GLFW.GLFW_KEY_B) {
-                this.boldButton.toggle();
+                Optional.ofNullable(boldButton).ifPresent(ModifierButtonWidget::toggle);
             } else if (keyCode == GLFW.GLFW_KEY_I) {
-                this.italicButton.toggle();
+                Optional.ofNullable(italicButton).ifPresent(ModifierButtonWidget::toggle);
             } else if (keyCode == GLFW.GLFW_KEY_U) {
-                this.underlineButton.toggle();
+                Optional.ofNullable(underlineButton).ifPresent(ModifierButtonWidget::toggle);
             } else if (keyCode == GLFW.GLFW_KEY_MINUS) {
-                this.strikethroughButton.toggle();
+                Optional.ofNullable(strikethroughButton).ifPresent(ModifierButtonWidget::toggle);
             } else if (keyCode == GLFW.GLFW_KEY_K) {
-                this.obfuscatedButton.toggle();
+                Optional.ofNullable(obfuscatedButton).ifPresent(ModifierButtonWidget::toggle);
             } else {
                 return;
             }
@@ -553,9 +706,7 @@ public abstract class BookEditScreenMixin extends Screen {
 
     @ModifyArg(method = "drawCursor", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;drawText(Lnet/minecraft/client/font/TextRenderer;Ljava/lang/String;IIIZ)I"), index = 4)
     private int modifyEndCursorColor(int constant) {
-        Formatting color = this.getRichSelectionManager().getColor();
-        return color == null || color.getColorValue() == null
-                ? constant : color.getColorValue();
+        return activeColor.getColorValue() == null ? constant : activeColor.getColorValue();
     }
 
     @ModifyArg(method = "drawCursor", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;fill(IIIII)V"), index = 4)
@@ -665,5 +816,38 @@ public abstract class BookEditScreenMixin extends Screen {
         }
 
         return new RichPageContent(text, cursorPosition, atEnd, lineStartsArray, lines.toArray(new BookEditScreen.Line[0]), selectionRectangles.toArray(new Rect2i[0]));
+    }
+
+
+    @Override
+    public BookEditScreenMemento scribble$createMemento() {
+        RichSelectionManager selectionManager = this.getRichSelectionManager();
+        return new BookEditScreenMemento(
+                currentPage,
+                selectionManager.selectionStart,
+                selectionManager.selectionEnd,
+                getCurrentPageText(),
+                activeColor,
+                activeModifiers
+        );
+    }
+
+    @Override
+    public void scribble$restore(BookEditScreenMemento memento) {
+        // restore opened page index
+        currentPage = memento.pageIndex();
+        updateButtons();
+        changePage();
+
+        // restore page content
+        setPageText(memento.currentPageRichText());
+
+        // restore text selection / cursor position
+        RichSelectionManager selectionManager = this.getRichSelectionManager();
+        selectionManager.setSelection(memento.selectionStart(), memento.selectionEnd());
+
+        activeColor = memento.color();
+        activeModifiers = memento.modifiers();
+        invalidateFormattingButtons();
     }
 }
