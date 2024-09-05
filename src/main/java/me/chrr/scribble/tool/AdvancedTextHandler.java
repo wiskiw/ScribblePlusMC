@@ -26,7 +26,8 @@ public class AdvancedTextHandler {
         // The First Group Selector - for punctuation and other unicode char: "!@#,.₽₽".
         // This behavior is still not really consist between different text edit programs/input fields
         // The Second Group Selector - for everything that not inside the first group that
-        String regex = "([\\p{P}\\p{S}]+\\s*)|([^\\p{P}\\p{S}\\s]+\\s*)";
+        // The Third Group Selector - just for any left spaces
+        String regex = "([\\p{P}\\p{S}]+\\s*)|([^\\p{P}\\p{S}\\s]+\\s*)|(\\s*)";
 
         List<String> textGroups = findGroups(text, regex);
 
@@ -65,7 +66,8 @@ public class AdvancedTextHandler {
         // The First Group Selector - for punctuation and other unicode char: "!@#,.₽₽".
         // This behavior is still not really consist between different text edit programs/input fields
         // The Second Group Selector - for everything that not inside the first group that
-        String regex = "(\\s*[\\p{P}\\p{S}]+)|(\\s*[^\\p{P}\\p{S}\\s]+)";
+        // The Third Group Selector - just for any left spaces
+        String regex = "(\\s*[\\p{P}\\p{S}]+)|(\\s*[^\\p{P}\\p{S}\\s]+)|(\\s*)";
         List<String> textGroups = findGroups(text, regex);
 
         int currentIndex = 0;
