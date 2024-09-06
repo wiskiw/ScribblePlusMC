@@ -10,6 +10,10 @@ public record ModConfig(
             30
     );
 
+    public ModConfig getDefault(){
+        return DEFAULT;
+    }
+
     public ModConfig withIsAdvancedCursorMovementEnabled(boolean isAdvancedCursorMovementEnabled) {
         return new ModConfig(
                 isAdvancedCursorMovementEnabled,

@@ -14,7 +14,7 @@ public class Scribble implements ClientModInitializer {
 
     public static final String COMPATIBLE_MOD_ID_SYMBOL_CHAT = "symbol-chat";
     public static final String COMPATIBLE_MOD_ID_FIXBOOKGUI = "fixbookgui";
-    public static final String COMPATIBLE_MOD_ID_CLOTH_CONFIG = "cloth-config";
+    public static final String COMPATIBLE_MOD_ID_YACL = "yet_another_config_lib_v3";
 
     public static boolean shouldCenter = false;
 

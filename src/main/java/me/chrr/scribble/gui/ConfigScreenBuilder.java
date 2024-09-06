@@ -1,9 +1,13 @@
 package me.chrr.scribble.gui;
 
+import dev.isxander.yacl3.api.ConfigCategory;
+import dev.isxander.yacl3.api.Option;
+import dev.isxander.yacl3.api.OptionDescription;
+import dev.isxander.yacl3.api.YetAnotherConfigLib;
+import dev.isxander.yacl3.api.controller.BooleanControllerBuilder;
+import dev.isxander.yacl3.api.controller.IntegerFieldControllerBuilder;
 import me.chrr.scribble.Scribble;
 import me.chrr.scribble.data.ModConfigIO;
-import me.chrr.scribble.model.ModConfig;
-import me.shedaniel.clothconfig2.api.ConfigBuilder;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.text.Text;
 
@@ -13,39 +17,46 @@ public class ConfigScreenBuilder {
         return new ConfigScreenBuilder();
     }
 
+    private static YetAnotherConfigLib createYACLBuilder() {
+        return YetAnotherConfigLib.createBuilder()
+                .save(() -> ModConfigIO.write(Scribble.config))
+                .title(Text.translatable("text.scribble.screen.config.title"))
+                .category(ConfigCategory.createBuilder()
+                        .name(Text.translatable("text.scribble.screen.config.category.general.title"))
+                        .option(
+                                Option.<Boolean>createBuilder()
+                                        .name(Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.title"))
+                                        .description(OptionDescription.of(Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.description")))
+                                        .binding(
+                                                Scribble.config.getDefault().isAdvancedCursorMovementEnabled(),
+                                                () -> Scribble.config.isAdvancedCursorMovementEnabled(),
+                                                value -> Scribble.config = Scribble.config.withIsAdvancedCursorMovementEnabled(value)
+                                        )
+                                        .controller((opt) -> BooleanControllerBuilder.create(opt).trueFalseFormatter())
+                                        .build()
+                        )
+                        .option(
+                                Option.<Integer>createBuilder()
+                                        .name(Text.translatable("text.scribble.screen.config.category.general.edit_history_size.title"))
+                                        .binding(
+                                                Scribble.config.getDefault().editHistorySize(),
+                                                () -> Scribble.config.editHistorySize(),
+                                                value -> Scribble.config = Scribble.config.withEditHistorySize(value)
+                                        )
+                                        .controller(opt -> IntegerFieldControllerBuilder.create(opt)
+                                                .range(0, 512)
+                                        )
+                                        .build()
+                        )
+                        .build())
+                .build();
+    }
+
     private ConfigScreenBuilder() {
 
     }
 
     public Screen build(Screen parent) {
-        ConfigBuilder builder = ConfigBuilder.create()
-                .setParentScreen(parent)
-                .setTitle(Text.translatable("text.scribble.screen.config.title"))
-                .setSavingRunnable(() -> ModConfigIO.write(Scribble.config));
-
-        builder.getOrCreateCategory(Text.translatable("text.scribble.screen.config.category.general.title"))
-                .addEntry(
-                        builder.entryBuilder()
-                                .startIntField(
-                                        Text.translatable("text.scribble.screen.config.category.general.edit_history_size.title"),
-                                        Scribble.config.editHistorySize()
-                                )
-                                .setDefaultValue(ModConfig.DEFAULT.editHistorySize())
-                                .setSaveConsumer((value) -> Scribble.config = Scribble.config.withEditHistorySize(value))
-                                .build()
-                )
-                .addEntry(
-                        builder.entryBuilder()
-                                .startBooleanToggle(
-                                        Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.title"),
-                                        Scribble.config.isAdvancedCursorMovementEnabled()
-                                )
-                                .setTooltip(Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.description"))
-                                .setDefaultValue(ModConfig.DEFAULT.isAdvancedCursorMovementEnabled())
-                                .setSaveConsumer((value) -> Scribble.config = Scribble.config.withIsAdvancedCursorMovementEnabled(value))
-                                .build()
-                );
-
-        return builder.build();
+        return createYACLBuilder().generateScreen(parent);
     }
 }
