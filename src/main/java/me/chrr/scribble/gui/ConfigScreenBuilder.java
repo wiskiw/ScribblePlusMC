@@ -26,9 +26,19 @@ public class ConfigScreenBuilder {
         builder.getOrCreateCategory(Text.translatable("text.scribble.screen.config.category.general.title"))
                 .addEntry(
                         builder.entryBuilder()
+                                .startIntField(
+                                        Text.translatable("text.scribble.screen.config.category.general.edit_history_size.title"),
+                                        Scribble.config.editHistorySize()
+                                )
+                                .setDefaultValue(ModConfig.DEFAULT.editHistorySize())
+                                .setSaveConsumer((value) -> Scribble.config = Scribble.config.withEditHistorySize(value))
+                                .build()
+                )
+                .addEntry(
+                        builder.entryBuilder()
                                 .startBooleanToggle(
                                         Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.title"),
-                                        ModConfig.DEFAULT.isAdvancedCursorMovementEnabled()
+                                        Scribble.config.isAdvancedCursorMovementEnabled()
                                 )
                                 .setTooltip(Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.description"))
                                 .setDefaultValue(ModConfig.DEFAULT.isAdvancedCursorMovementEnabled())

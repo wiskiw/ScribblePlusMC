@@ -8,9 +8,9 @@ import me.chrr.scribble.book.*;
 import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
-import me.chrr.scribble.tool.AdvancedTextHandler;
 import me.chrr.scribble.model.BookEditScreenMemento;
 import me.chrr.scribble.model.command.*;
+import me.chrr.scribble.tool.AdvancedTextHandler;
 import me.chrr.scribble.tool.Restorable;
 import me.chrr.scribble.tool.commandmanager.Command;
 import me.chrr.scribble.tool.commandmanager.CommandManager;
@@ -45,9 +45,6 @@ import java.util.*;
 @Mixin(BookEditScreen.class)
 public abstract class BookEditScreenMixin extends Screen
         implements PagesListener, Restorable<BookEditScreenMemento> {
-
-    @Unique
-    private static final int BOOK_EDIT_HISTORY_SIZE = 30;
 
     @Unique
     private static final int MAX_PAGES_NUMBER = 100;
@@ -123,7 +120,7 @@ public abstract class BookEditScreenMixin extends Screen
     private final List<RichText> richPages = new ArrayList<>();
 
     @Unique
-    private final CommandManager commandManager = new CommandManager(BOOK_EDIT_HISTORY_SIZE);
+    private final CommandManager commandManager = new CommandManager(Scribble.config.editHistorySize());
 
     @Unique
     @NotNull
@@ -555,7 +552,7 @@ public abstract class BookEditScreenMixin extends Screen
 
     @Inject(method = "selectCurrentWord", at = @At(value = "HEAD"), cancellable = true)
     private void selectCurrentWord(int cursor, CallbackInfo ci) {
-        if (Scribble.config.isAdvancedCursorMovementEnabled()){
+        if (Scribble.config.isAdvancedCursorMovementEnabled()) {
             // original Minecraft selectCurrentWord() implementation with custom moveCursorByWords() call
             String string = this.getCurrentPageContent();
             getRichSelectionManager().setSelection(

@@ -31,6 +31,7 @@
 
   "text.scribble.screen.config.title": "Scribble Config",
   "text.scribble.screen.config.category.general.title": "General",
+  "text.scribble.screen.config.category.general.edit_history_size.title": "Undo History Size",
   "text.scribble.screen.config.category.general.advanced_cursor_movement.title": "Advanced Cursor Movement",
   "text.scribble.screen.config.category.general.advanced_cursor_movement.description": "Changes the default cursor movement logic for the Book Editor to match standard behaviour in text editors/input fields outside of Minecraft."
 }
