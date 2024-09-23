@@ -30,7 +30,6 @@ public class RichSelectionManager extends SelectionManager {
     public RichSelectionManager(
             Supplier<RichText> textGetter,
             Consumer<RichText> textSetter,
-            Consumer<String> stringSetter,
             StateCallback stateCallback,
             Supplier<String> clipboardGetter,
             Consumer<String> clipboardSetter,
@@ -47,13 +46,9 @@ public class RichSelectionManager extends SelectionManager {
         );
 
         this.textGetter = textGetter;
+        this.textSetter = textSetter;
         this.textFilter = textFilter;
         this.stateCallback = stateCallback;
-
-        this.textSetter = (text) -> {
-            textSetter.accept(text);
-            stringSetter.accept(text.getAsFormattedString());
-        };
 
         this.colorGetter = colorGetter;
         this.modifiersGetter = modifiersGetter;
@@ -182,7 +177,7 @@ public class RichSelectionManager extends SelectionManager {
         this.delete(0);
     }
 
-    private String getSelectedFormattedText() {
+    public String getSelectedFormattedText() {
         int i = Math.min(this.selectionStart, this.selectionEnd);
         int j = Math.max(this.selectionStart, this.selectionEnd);
         return textGetter.get().subText(i, j).getAsFormattedString();
@@ -221,19 +216,27 @@ public class RichSelectionManager extends SelectionManager {
     }
 
     private void notifyCursorFormattingChanged() {
-        if (this.textGetter == null) {
-            // We're too early, abort.
-            // Can happen when the methods is called from the supper constructor
+        if (stateCallback == null) {
+            // Can happen when the method is called from the supper constructor
             return;
         }
 
-        int start = Math.min(this.selectionStart, this.selectionEnd);
-        int end = Math.max(this.selectionStart, this.selectionEnd);
-        Pair<@Nullable Formatting, Set<Formatting>> format = this.textGetter.get().getCommonFormat(start, end);
+        Pair<@Nullable Formatting, Set<Formatting>> format = getCursorFormatting();
 
         Formatting color = format.getLeft();
         Set<Formatting> modifiers = new HashSet<>(format.getRight());
         stateCallback.onCursorFormattingChanged(color, modifiers);
+    }
+
+    public Pair<@Nullable Formatting, Set<Formatting>> getCursorFormatting() {
+        if (textGetter == null) {
+            // Can happen when the method is called from the supper constructor
+            return new Pair<>(null, Set.of());
+        }
+
+        int start = Math.min(this.selectionStart, this.selectionEnd);
+        int end = Math.max(this.selectionStart, this.selectionEnd);
+        return this.textGetter.get().getCommonFormat(start, end);
     }
 
     @Override
@@ -286,15 +289,6 @@ public class RichSelectionManager extends SelectionManager {
 
     public void copyWithoutFormatting() {
         this.clipboardSetter.accept(Formatting.strip(this.getSelectedFormattedText()));
-    }
-
-    public void cutWithoutFormatting() {
-        this.clipboardSetter.accept(Formatting.strip(this.getSelectedFormattedText()));
-        this.delete(0);
-    }
-
-    public void pasteWithoutFormatting() {
-        this.insert(Formatting.strip(this.clipboardGetter.get()));
     }
 
     public interface StateCallback {

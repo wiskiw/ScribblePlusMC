@@ -127,6 +127,7 @@ public abstract class BookEditScreenMixin extends Screen
     private Formatting activeColor = DEFAULT_COLOR;
 
     @Unique
+    @NotNull
     private Set<Formatting> activeModifiers = new HashSet<>();
 
     @Unique
@@ -141,6 +142,7 @@ public abstract class BookEditScreenMixin extends Screen
     private ModifierButtonWidget obfuscatedButton;
 
     @Unique
+    @NotNull
     private List<ColorSwatchWidget> colorSwatches = List.of();
 
     @Unique
@@ -196,9 +198,15 @@ public abstract class BookEditScreenMixin extends Screen
     private void setPageText(RichText newText) {
         if (this.currentPage >= 0 && this.currentPage < this.richPages.size()) {
             this.richPages.set(this.currentPage, newText);
-            this.dirty = true;
-            this.invalidatePageContent();
         }
+
+        // also update original page list to keep it in sync with richPages
+        if (this.currentPage >= 0 && this.currentPage < this.pages.size()) {
+            this.pages.set(this.currentPage, newText.getAsFormattedString());
+        }
+
+        this.dirty = true;
+        this.invalidatePageContent();
     }
 
     @Unique
@@ -298,7 +306,6 @@ public abstract class BookEditScreenMixin extends Screen
         currentPageSelectionManager = new RichSelectionManager(
                 this::getCurrentPageText,
                 this::setPageText,
-                (string) -> this.pages.set(this.currentPage, string),
                 this::onCursorFormattingChanged,
                 this::getRawClipboard,
                 this::setClipboard,
@@ -316,15 +323,20 @@ public abstract class BookEditScreenMixin extends Screen
     }
 
     @Unique
-    private void changeActiveColor(@NotNull Formatting color) {
-        if (this.activeColor == color) {
+    private void changeActiveColor(@NotNull Formatting newColor) {
+        @Nullable Formatting cursorColor = getRichSelectionManager().getCursorFormatting().getLeft();
+        if (newColor == activeColor && newColor == cursorColor) {
+            // Apply color for selection only if(or):
+            // - new color is different
+            // - cursor color is not undefined (multiple colors text selected e.g.)
+            // Otherwise - ignore
             return;
         }
 
         Command command = new ActionCommand<>(this, () -> {
-            activeColor = color;
+            activeColor = newColor;
             invalidateFormattingButtons();
-            getRichSelectionManager().applyColorForSelection(color);
+            getRichSelectionManager().applyColorForSelection(newColor);
         });
         commandManager.execute(command);
     }
@@ -352,7 +364,7 @@ public abstract class BookEditScreenMixin extends Screen
     }
 
     @Inject(method = "updateButtons", at = @At(value = "HEAD"))
-    private void updateButtons(CallbackInfo ci) {
+    private void invalidateControlButtons(CallbackInfo ci) {
         Optional.ofNullable(boldButton).ifPresent(button -> button.visible = !this.signing);
         Optional.ofNullable(italicButton).ifPresent(button -> button.visible = !this.signing);
         Optional.ofNullable(underlineButton).ifPresent(button -> button.visible = !this.signing);
@@ -360,9 +372,7 @@ public abstract class BookEditScreenMixin extends Screen
         Optional.ofNullable(obfuscatedButton).ifPresent(button -> button.visible = !this.signing);
 
         for (ColorSwatchWidget swatch : colorSwatches) {
-            if (swatch != null) {
-                swatch.visible = !signing;
-            }
+            swatch.visible = !signing;
         }
 
         Optional.ofNullable(deletePageButton).ifPresent(button -> button.visible = !signing && richPages.size() > 1);
@@ -387,9 +397,7 @@ public abstract class BookEditScreenMixin extends Screen
     @Unique
     private void setSwatchColor(Formatting color) {
         for (ColorSwatchWidget swatch : colorSwatches) {
-            if (swatch != null) {
-                swatch.setToggled(swatch.getColor() == color);
-            }
+            swatch.setToggled(swatch.getColor() == color);
         }
     }
 
@@ -630,14 +638,16 @@ public abstract class BookEditScreenMixin extends Screen
 
         // Override CUT and CUT-without-formatting shortcut
         if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_X) {
-            Command command = new ActionCommand<>(this, () -> {
-                if (hasShiftDown()) {
-                    getRichSelectionManager().cutWithoutFormatting();
-                } else {
-                    getRichSelectionManager().cut();
-                }
-            });
+            // Do not use SelectionManager internal CUT implementation to have more flexibility.
+            // Put selected text into the clipboard
+            String selectedFormattedText = getRichSelectionManager().getSelectedFormattedText();
+            String textToCut = hasShiftDown() ? Formatting.strip(selectedFormattedText) : selectedFormattedText;
+            setClipboard(textToCut);
+
+            // Delete selected text
+            Command command = new DeleteTextCommand<>(this, getRichSelectionManager());
             commandManager.execute(command);
+
             cir.setReturnValue(true);
             cir.cancel();
             return;
@@ -645,11 +655,14 @@ public abstract class BookEditScreenMixin extends Screen
 
         // Override PASTE and PASTE-without-formatting shortcut
         if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_V) {
-            // ToDo try to find more elegant way how to implement PASTE command
-            //  which won't use internal selectionManager.paste/pasteWithoutFormatting() implementation
+            // Do not use SelectionManager internal PASTE implementation to have more flexibility.
+            // Fetch a text from the clipboard
             String textToPaste = hasShiftDown() ? Formatting.strip(getRawClipboard()) : getRawClipboard();
+
+            // Paste the text
             Command command = new InsertTextCommand<>(this, getRichSelectionManager(), textToPaste);
             commandManager.execute(command);
+
             cir.setReturnValue(true);
             cir.cancel();
             return;
@@ -674,8 +687,7 @@ public abstract class BookEditScreenMixin extends Screen
                     ? SelectionManager.SelectionType.WORD
                     : SelectionManager.SelectionType.CHARACTER;
 
-            Command command = new ActionCommand<>(this,
-                    () -> getRichSelectionManager().delete(-1, selectionType));
+            Command command = new DeleteTextCommand<>(this, getRichSelectionManager(), -1, selectionType);
             commandManager.execute(command);
 
             cir.setReturnValue(true);
