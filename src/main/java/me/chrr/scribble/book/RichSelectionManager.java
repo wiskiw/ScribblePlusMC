@@ -257,7 +257,7 @@ public class RichSelectionManager extends SelectionManager {
 
     @Override
     public void moveCursorPastWord(int offset, boolean shiftDown) {
-        if (Scribble.config.isAdvancedCursorMovementEnabled()) {
+        if (Scribble.getConfig().isAdvancedCursorMovementEnabled()) {
             // original Minecraft implementation with custom moveCursorByWords()
             this.selectionStart = AdvancedTextHandler.moveCursorByWords(
                     this.textGetter.get().getPlainText(),
@@ -272,7 +272,7 @@ public class RichSelectionManager extends SelectionManager {
 
     @Override
     public void deleteWord(int offset) {
-        if (Scribble.config.isAdvancedCursorMovementEnabled()) {
+        if (Scribble.getConfig().isAdvancedCursorMovementEnabled()) {
             // original Minecraft implementation with custom moveCursorByWords()
             int i = AdvancedTextHandler.moveCursorByWords(
                     this.textGetter.get().getPlainText(),

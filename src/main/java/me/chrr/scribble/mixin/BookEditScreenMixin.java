@@ -126,7 +126,7 @@ public abstract class BookEditScreenMixin extends Screen
     private final List<RichText> richPages = new ArrayList<>();
 
     @Unique
-    private final CommandManager commandManager = new CommandManager(Scribble.config.editHistorySize());
+    private final CommandManager commandManager = new CommandManager(Scribble.getConfig().editHistorySize());
 
     @Unique
     @Nullable
@@ -327,8 +327,9 @@ public abstract class BookEditScreenMixin extends Screen
             this.richPages.add(RichText.fromFormattedString(page));
         }
 
+        // fixme should it be here?
         // After loading the pages, we update cursor formatting.
-        getRichSelectionManager().notifyCursorFormattingChanged();
+//        getRichSelectionManager().notifyCursorFormattingChanged();
     }
 
     @Unique
@@ -566,7 +567,7 @@ public abstract class BookEditScreenMixin extends Screen
 
     @Inject(method = "selectCurrentWord", at = @At(value = "HEAD"), cancellable = true)
     private void selectCurrentWord(int cursor, CallbackInfo ci) {
-        if (Scribble.config.isAdvancedCursorMovementEnabled()) {
+        if (Scribble.getConfig().isAdvancedCursorMovementEnabled()) {
             // original Minecraft selectCurrentWord() implementation with custom moveCursorByWords() call
             String string = this.getCurrentPageContent();
             getRichSelectionManager().setSelection(
@@ -650,7 +651,7 @@ public abstract class BookEditScreenMixin extends Screen
         // Override COPY and CUT shortcuts
         if (hasControlDown() && !hasAltDown() && (keyCode == GLFW.GLFW_KEY_C || keyCode == GLFW.GLFW_KEY_X)) {
             // Copy formatting when the config option is set and the SHIFT key is not held down.
-            boolean shouldCopyFormatting = Scribble.CONFIG_MANAGER.getConfig().copyFormattingCodes && !hasShiftDown();
+            boolean shouldCopyFormatting = Scribble.getConfig().isCopyFormattingCodesEnabled() && !hasShiftDown();
 
             // Put the selected text on the clipboard with or without formatting.
             String selectedText = getRichSelectionManager().getSelectedFormattedText();

@@ -27,9 +27,9 @@
         "client": [
             "me.chrr.scribble.Scribble"
         ],
-      "modmenu": [
-        "me.chrr.scribble.ModMenuIntegration"
-      ]
+        "modmenu": [
+          "me.chrr.scribble.ModMenuIntegration"
+        ]
     },
     "depends": {
         "minecraft": "${minecraftDependency}",

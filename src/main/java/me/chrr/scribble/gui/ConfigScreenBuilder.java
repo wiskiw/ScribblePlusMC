@@ -19,7 +19,7 @@ public class ConfigScreenBuilder {
 
     private static YetAnotherConfigLib createYACLBuilder() {
         return YetAnotherConfigLib.createBuilder()
-                .save(() -> ModConfigIO.write(Scribble.config))
+                .save(() -> ModConfigIO.write(Scribble.getConfig()))
                 .title(Text.translatable("text.scribble.screen.config.title"))
                 .category(ConfigCategory.createBuilder()
                         .name(Text.translatable("text.scribble.screen.config.category.general.title"))
@@ -28,9 +28,9 @@ public class ConfigScreenBuilder {
                                         .name(Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.title"))
                                         .description(OptionDescription.of(Text.translatable("text.scribble.screen.config.category.general.advanced_cursor_movement.description")))
                                         .binding(
-                                                Scribble.config.getDefault().isAdvancedCursorMovementEnabled(),
-                                                () -> Scribble.config.isAdvancedCursorMovementEnabled(),
-                                                value -> Scribble.config = Scribble.config.withIsAdvancedCursorMovementEnabled(value)
+                                                Scribble.getConfig().getDefault().isAdvancedCursorMovementEnabled(),
+                                                () -> Scribble.getConfig().isAdvancedCursorMovementEnabled(),
+                                                value -> Scribble.setConfig(Scribble.getConfig().withIsAdvancedCursorMovementEnabled(value))
                                         )
                                         .controller((opt) -> BooleanControllerBuilder.create(opt).trueFalseFormatter())
                                         .build()
@@ -39,13 +39,26 @@ public class ConfigScreenBuilder {
                                 Option.<Integer>createBuilder()
                                         .name(Text.translatable("text.scribble.screen.config.category.general.edit_history_size.title"))
                                         .binding(
-                                                Scribble.config.getDefault().editHistorySize(),
-                                                () -> Scribble.config.editHistorySize(),
-                                                value -> Scribble.config = Scribble.config.withEditHistorySize(value)
+                                                Scribble.getConfig().getDefault().editHistorySize(),
+                                                () -> Scribble.getConfig().editHistorySize(),
+                                                value -> Scribble.setConfig(Scribble.getConfig().withEditHistorySize(value))
                                         )
                                         .controller(opt -> IntegerFieldControllerBuilder.create(opt)
                                                 .range(0, 512)
                                         )
+                                        .build()
+                        )
+
+                        .option(
+                                Option.<Boolean>createBuilder()
+                                        .name(Text.translatable("text.scribble.screen.config.category.general.copy_formatting_codes.title"))
+                                        .description(OptionDescription.of(Text.translatable("text.scribble.screen.config.category.general.copy_formatting_codes.description")))
+                                        .binding(
+                                                Scribble.getConfig().getDefault().isCopyFormattingCodesEnabled(),
+                                                () -> Scribble.getConfig().isCopyFormattingCodesEnabled(),
+                                                value -> Scribble.setConfig(Scribble.getConfig().withIsCopyFormattingCodesEnabled(value))
+                                        )
+                                        .controller((opt) -> BooleanControllerBuilder.create(opt).trueFalseFormatter())
                                         .build()
                         )
                         .build())

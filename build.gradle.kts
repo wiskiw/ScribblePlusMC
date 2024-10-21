@@ -27,8 +27,6 @@ loom {
 }
 
 repositories {
-    maven("https://maven.terraformersmc.com/releases/")
-    maven("https://maven.shedaniel.me/")
     maven("https://api.modrinth.com/maven")
     maven("https://maven.shedaniel.me/") // Cloth Config
     maven("https://maven.terraformersmc.com/") // Mod Menu
@@ -53,9 +51,6 @@ dependencies {
     implementation("com.google.code.gson:gson:2.11.0") // json encoding/decoding
 
     include(fabricApiModule("fabric-resource-loader-v0")!!)
-
-    modCompileOnlyApi("com.terraformersmc:modmenu:${prop("modmenu", "version")}")
-    modCompileOnlyApi("me.shedaniel.cloth:cloth-config-fabric:${prop("clothconfig", "version")}")
 
     modCompileOnly("maven.modrinth:symbol-chat:${prop("symbol-chat", "version")}")
 
