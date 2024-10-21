@@ -1,3 +1,22 @@
+## 1.3.2
+
+- Add a configuration option to copy without formatting by default.
+- Fix mixin crash when Amendments is installed.
+- Smaller bug fixes.
+
+## 1.3.1
+
+- Fix crash when typing when multiple colors are selected.
+- Respect keyboard layout for undo and redo.
+- Properly delete after cursor when pressing 'delete'.
+
+## 1.3.0
+
+- Allow for copying and pasting while keeping the formatting codes.
+- Add the ability to undo and redo when pressing Ctrl-Z / Ctrl-Shift-Z.
+
+Thanks to @wiskiw for the contributions!
+
 ## 1.2.2
 
 - Add support for 1.21.1.

@@ -168,11 +168,15 @@ public class RichSelectionManager extends SelectionManager {
 
     @Override
     public void copy() {
+        // NOTE: this should only be called by other mods, as we're overriding all
+        //       the keyboard shortcuts in BookEditScreenMixin.
         this.clipboardSetter.accept(this.getSelectedFormattedText());
     }
 
     @Override
     public void cut() {
+        // NOTE: this should only be called by other mods, as we're overriding all
+        //       the keyboard shortcuts in BookEditScreenMixin.
         this.clipboardSetter.accept(this.getSelectedFormattedText());
         this.delete(0);
     }
@@ -285,10 +289,6 @@ public class RichSelectionManager extends SelectionManager {
     protected void updateSelectionRange(boolean shiftDown) {
         super.updateSelectionRange(shiftDown);
         notifyCursorFormattingChanged();
-    }
-
-    public void copyWithoutFormatting() {
-        this.clipboardSetter.accept(Formatting.strip(this.getSelectedFormattedText()));
     }
 
     public interface StateCallback {

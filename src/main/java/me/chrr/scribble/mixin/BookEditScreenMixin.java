@@ -3,11 +3,17 @@ package me.chrr.scribble.mixin;
 import com.google.common.collect.Lists;
 import it.unimi.dsi.fastutil.ints.IntArrayList;
 import it.unimi.dsi.fastutil.ints.IntList;
+import me.chrr.scribble.KeyboardUtil;
 import me.chrr.scribble.Scribble;
 import me.chrr.scribble.book.*;
 import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
+import me.chrr.scribble.model.BookEditScreenMemento;
+import me.chrr.scribble.model.command.*;
+import me.chrr.scribble.tool.Restorable;
+import me.chrr.scribble.tool.commandmanager.Command;
+import me.chrr.scribble.tool.commandmanager.CommandManager;
 import me.chrr.scribble.model.BookEditScreenMemento;
 import me.chrr.scribble.model.command.*;
 import me.chrr.scribble.tool.AdvancedTextHandler;
@@ -123,7 +129,7 @@ public abstract class BookEditScreenMixin extends Screen
     private final CommandManager commandManager = new CommandManager(Scribble.config.editHistorySize());
 
     @Unique
-    @NotNull
+    @Nullable
     private Formatting activeColor = DEFAULT_COLOR;
 
     @Unique
@@ -226,24 +232,24 @@ public abstract class BookEditScreenMixin extends Screen
 
         // Modifier buttons
         boldButton = addModifierButton(
-                Formatting.BOLD,
-                Text.translatable("text.scribble.modifier.bold"), x, y, 0, 0, 22, 19
+                Formatting.BOLD, Text.translatable("text.scribble.modifier.bold"),
+                x, y, 0, 0, 22, 19
         );
         italicButton = addModifierButton(
-                Formatting.ITALIC,
-                Text.translatable("text.scribble.modifier.italic"), x, y + 19, 0, 19, 22, 17
+                Formatting.ITALIC, Text.translatable("text.scribble.modifier.italic"),
+                x, y + 19, 0, 19, 22, 17
         );
         underlineButton = addModifierButton(
-                Formatting.UNDERLINE,
-                Text.translatable("text.scribble.modifier.underline"), x, y + 36, 0, 36, 22, 17
+                Formatting.UNDERLINE, Text.translatable("text.scribble.modifier.underline"),
+                x, y + 36, 0, 36, 22, 17
         );
         strikethroughButton = addModifierButton(
-                Formatting.STRIKETHROUGH,
-                Text.translatable("text.scribble.modifier.strikethrough"), x, y + 53, 0, 53, 22, 17
+                Formatting.STRIKETHROUGH, Text.translatable("text.scribble.modifier.strikethrough"),
+                x, y + 53, 0, 53, 22, 17
         );
         obfuscatedButton = addModifierButton(
-                Formatting.OBFUSCATED,
-                Text.translatable("text.scribble.modifier.obfuscated"), x, y + 70, 0, 70, 22, 18
+                Formatting.OBFUSCATED, Text.translatable("text.scribble.modifier.obfuscated"),
+                x, y + 70, 0, 70, 22, 18
         );
 
         // Color swatches
@@ -297,6 +303,7 @@ public abstract class BookEditScreenMixin extends Screen
                 x, y, u, v, width, height,
                 activeModifiers.contains(modifier)
         );
+
         return addDrawableChild(button);
     }
 
@@ -311,8 +318,7 @@ public abstract class BookEditScreenMixin extends Screen
                 this::setClipboard,
                 text -> text.getAsFormattedString().length() < 1024
                         && this.textRenderer.getWrappedLinesHeight(text, 114) <= 128,
-
-                () -> this.activeColor,
+                () -> Optional.ofNullable(this.activeColor).orElse(DEFAULT_COLOR),
                 () -> this.activeModifiers
         );
 
@@ -320,12 +326,14 @@ public abstract class BookEditScreenMixin extends Screen
         for (String page : this.pages) {
             this.richPages.add(RichText.fromFormattedString(page));
         }
+
+        // After loading the pages, we update cursor formatting.
+        getRichSelectionManager().notifyCursorFormattingChanged();
     }
 
     @Unique
     private void changeActiveColor(@NotNull Formatting newColor) {
-        @Nullable Formatting cursorColor = getRichSelectionManager().getCursorFormatting().getLeft();
-        if (newColor == activeColor && newColor == cursorColor) {
+        if (newColor == activeColor) {
             // Apply color for selection only if(or):
             // - new color is different
             // - cursor color is not undefined (multiple colors text selected e.g.)
@@ -349,10 +357,8 @@ public abstract class BookEditScreenMixin extends Screen
             } else {
                 activeModifiers.remove(modifier);
             }
-            invalidateFormattingButtons();
 
-            // ToDo replace with manager.applyModifiersForSelection(activeModifiers) call
-            //  to have the single state of truth for activeModifiers.
+            invalidateFormattingButtons();
             getRichSelectionManager().toggleModifierForSelection(modifier, toggled);
         });
         commandManager.execute(command);
@@ -403,7 +409,7 @@ public abstract class BookEditScreenMixin extends Screen
 
     @Unique
     private void onCursorFormattingChanged(@Nullable Formatting color, Set<Formatting> modifiers) {
-        this.activeColor = color != null ? color : DEFAULT_COLOR;
+        this.activeColor = color;
         this.activeModifiers = modifiers;
 
         invalidateFormattingButtons();
@@ -550,7 +556,7 @@ public abstract class BookEditScreenMixin extends Screen
 
     // We cancel any drags outside the width of the book interface.
     // This needs to be here, because in this GUI no buttons can ever be focused.
-    @Inject(method = "mouseDragged", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;getPageContent()Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$PageContent;", shift = At.Shift.BEFORE), cancellable = true)
+    @Inject(method = "mouseDragged", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;getPageContent()Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$PageContent;"), cancellable = true)
     private void mouseDragged(double mouseX, double mouseY, int button, double deltaX, double deltaY, CallbackInfoReturnable<Boolean> cir) {
         if (mouseX < (this.width - 152) / 2.0 || mouseX > (this.width + 152) / 2.0) {
             cir.setReturnValue(true);
@@ -610,23 +616,30 @@ public abstract class BookEditScreenMixin extends Screen
             // the last page was opened before removing
             currentPage = Math.max(0, richPages.size() - 1);
         }
+
         dirty = true;
         updateButtons();
         changePage();
     }
 
     /**
+     * NOTE: This method is marked public, while the original method is private. Some mods
+     * will try to access-modify `setPageContent` to be public, and thus crash the
+     * game. While this will still produce incompatibilities, we at least try to
+     * not crash.
+     *
      * @reason This method should not be called, as it is replaced by {@link #setPageText}.
      * @author chrrrs
      */
     @Overwrite
-    private void setPageContent(String newContent) {
+    @SuppressWarnings("visibility")
+    public void setPageContent(String newContent) {
         Scribble.LOGGER.warn("setPageContent() was called, but ignored.");
     }
 
     @Inject(method = "charTyped", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/SelectionManager;insert(Ljava/lang/String;)V"), cancellable = true)
     private void charTypedEditMode(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        Command command = new InsertTextCommand<>(this, currentPageSelectionManager, Character.toString(chr));
+        Command command = new ActionCommand<>(this, () -> this.getRichSelectionManager().insert(chr));
         commandManager.execute(command);
         cir.setReturnValue(true);
         cir.cancel();
@@ -634,25 +647,20 @@ public abstract class BookEditScreenMixin extends Screen
 
     @Inject(method = "keyPressedEditMode", at = @At(value = "HEAD"), cancellable = true)
     private void keyPressedEditMode(int keyCode, int scanCode, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        // Override copy-without-formatting shortcut
-        if (hasControlDown() && hasShiftDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_C) {
-            getRichSelectionManager().copyWithoutFormatting();
-            cir.setReturnValue(true);
-            cir.cancel();
-            return;
-        }
+        // Override COPY and CUT shortcuts
+        if (hasControlDown() && !hasAltDown() && (keyCode == GLFW.GLFW_KEY_C || keyCode == GLFW.GLFW_KEY_X)) {
+            // Copy formatting when the config option is set and the SHIFT key is not held down.
+            boolean shouldCopyFormatting = Scribble.CONFIG_MANAGER.getConfig().copyFormattingCodes && !hasShiftDown();
 
-        // Override CUT and CUT-without-formatting shortcut
-        if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_X) {
-            // Do not use SelectionManager internal CUT implementation to have more flexibility.
-            // Put selected text into the clipboard
-            String selectedFormattedText = getRichSelectionManager().getSelectedFormattedText();
-            String textToCut = hasShiftDown() ? Formatting.strip(selectedFormattedText) : selectedFormattedText;
-            setClipboard(textToCut);
+            // Put the selected text on the clipboard with or without formatting.
+            String selectedText = getRichSelectionManager().getSelectedFormattedText();
+            setClipboard(shouldCopyFormatting ? selectedText : Formatting.strip(selectedText));
 
-            // Delete selected text
-            Command command = new DeleteTextCommand<>(this, getRichSelectionManager());
-            commandManager.execute(command);
+            // Delete the selected text if we're cutting.
+            if (keyCode == GLFW.GLFW_KEY_X) {
+                Command command = new ActionCommand<>(this, () -> this.getRichSelectionManager().delete(0));
+                commandManager.execute(command);
+            }
 
             cir.setReturnValue(true);
             cir.cancel();
@@ -661,12 +669,11 @@ public abstract class BookEditScreenMixin extends Screen
 
         // Override PASTE and PASTE-without-formatting shortcut
         if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_V) {
-            // Do not use SelectionManager internal PASTE implementation to have more flexibility.
-            // Fetch a text from the clipboard
+            // Get the text from the clipboard with or without formatting.
             String textToPaste = hasShiftDown() ? Formatting.strip(getRawClipboard()) : getRawClipboard();
 
-            // Paste the text
-            Command command = new InsertTextCommand<>(this, getRichSelectionManager(), textToPaste);
+            // Paste the text onto the page.
+            Command command = new ActionCommand<>(this, () -> this.getRichSelectionManager().insert(textToPaste));
             commandManager.execute(command);
 
             cir.setReturnValue(true);
@@ -674,14 +681,17 @@ public abstract class BookEditScreenMixin extends Screen
             return;
         }
 
-        // Inject hotkeys for Undo and Redo
-        if (hasControlDown() && !hasAltDown() && keyCode == GLFW.GLFW_KEY_Z) {
-            if (hasShiftDown()) {
-                commandManager.tryRedo();
-            } else {
-                commandManager.tryUndo();
-            }
+        // Undo on Ctrl-Z
+        if (!hasShiftDown() && hasControlDown() && !hasAltDown() && KeyboardUtil.isKey(keyCode, "Z")) {
+            commandManager.tryUndo();
+            cir.setReturnValue(true);
+            cir.cancel();
+            return;
+        }
 
+        // Redo on Ctrl-Shift-Z and Ctrl-Y
+        if (hasControlDown() && !hasAltDown() && ((hasShiftDown() && KeyboardUtil.isKey(keyCode, "Z")) || (!hasShiftDown() && KeyboardUtil.isKey(keyCode, "Y")))) {
+            commandManager.tryRedo();
             cir.setReturnValue(true);
             cir.cancel();
             return;
@@ -693,7 +703,9 @@ public abstract class BookEditScreenMixin extends Screen
                     ? SelectionManager.SelectionType.WORD
                     : SelectionManager.SelectionType.CHARACTER;
 
-            Command command = new DeleteTextCommand<>(this, getRichSelectionManager(), -1, selectionType);
+            // Delete after the cursor when holding DELETE, otherwise before.
+            int offset = keyCode == GLFW.GLFW_KEY_DELETE ? 1 : -1;
+            Command command = new ActionCommand<>(this, () -> this.getRichSelectionManager().delete(offset, selectionType));
             commandManager.execute(command);
 
             cir.setReturnValue(true);
@@ -724,7 +736,7 @@ public abstract class BookEditScreenMixin extends Screen
 
     @ModifyArg(method = "drawCursor", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;drawText(Lnet/minecraft/client/font/TextRenderer;Ljava/lang/String;IIIZ)I"), index = 4)
     private int modifyEndCursorColor(int constant) {
-        return activeColor.getColorValue() == null ? constant : activeColor.getColorValue();
+        return activeColor == null || activeColor.getColorValue() == null ? constant : activeColor.getColorValue();
     }
 
     @ModifyArg(method = "drawCursor", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;fill(IIIII)V"), index = 4)
