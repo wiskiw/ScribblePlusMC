@@ -5,6 +5,8 @@
     "config.scribble.option.center_book_gui": "Выравнивать интерфейс книги по вертикали",
     "config.scribble.option.show_save_load_buttons": "Показывать кнопки сохранения/загрузки",
     "config.scribble.option.edit_history_size": "Размер истории редактирования",
+    "config.scribble.option.use_enhanced_cursor_movement": "Улучшенное перемещение курсора",
+    "config.scribble.description.use_enhanced_cursor_movement": "Изменяет стандартную логику перемещения курсора для книги с пером, делая поведение курсора более похожим на стандартное в текстовых редакторах.",
     "text.scribble.action.delete_page": "Удалить страницу",
     "text.scribble.action.insert_new_page": "Вставить новую страницу",
     "text.scribble.action.save_book_to_file": "Сохранить книгу в файл...",
