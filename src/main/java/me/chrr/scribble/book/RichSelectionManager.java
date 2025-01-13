@@ -219,6 +219,36 @@ public class RichSelectionManager extends SelectionManager {
     }
 
     @Override
+    public void moveCursorPastWord(int offset, boolean shiftDown) {
+        if (Scribble.CONFIG_MANAGER.getConfig().useEnhancedCursorMovement) {
+            // original Minecraft implementation with custom moveCursorByWords()
+            this.selectionStart = EnhancedTextHandler.moveCursorByWords(
+                    this.textGetter.get().getPlainText(),
+                    offset,
+                    this.selectionStart
+            );
+            this.updateSelectionRange(shiftDown);
+        } else {
+            super.moveCursorPastWord(offset, shiftDown);
+        }
+    }
+
+    @Override
+    public void deleteWord(int offset) {
+        if (Scribble.CONFIG_MANAGER.getConfig().useEnhancedCursorMovement) {
+            // original Minecraft implementation with custom moveCursorByWords()
+            int i = EnhancedTextHandler.moveCursorByWords(
+                    this.textGetter.get().getPlainText(),
+                    offset,
+                    this.selectionStart
+            );
+            this.delete(i - this.selectionStart);
+        } else {
+            super.deleteWord(offset);
+        }
+    }
+
+    @Override
     protected void updateSelectionRange(boolean shiftDown) {
         super.updateSelectionRange(shiftDown);
         notifyCursorFormattingChanged();

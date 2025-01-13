@@ -117,6 +117,9 @@ public abstract class BookEditScreenMixin extends Screen implements PagesListene
 
     @Shadow
     protected abstract void updateButtons();
+
+    @Shadow
+    protected abstract String getCurrentPageContent();
     //endregion
 
     // List of text on the pages of the book. This replaces the usual
@@ -610,6 +613,19 @@ public abstract class BookEditScreenMixin extends Screen implements PagesListene
         if (mouseX < (this.width - 152) / 2.0 || mouseX > (this.width + 152) / 2.0) {
             cir.setReturnValue(true);
             cir.cancel();
+        }
+    }
+
+    @Inject(method = "selectCurrentWord", at = @At(value = "HEAD"), cancellable = true)
+    private void selectCurrentWord(int cursor, CallbackInfo ci) {
+        if (Scribble.CONFIG_MANAGER.getConfig().useEnhancedCursorMovement) {
+            // original Minecraft selectCurrentWord() implementation with custom moveCursorByWords() call
+            String string = this.getCurrentPageContent();
+            getRichSelectionManager().setSelection(
+                    EnhancedTextHandler.moveCursorByWords(string, -1, cursor),
+                    EnhancedTextHandler.moveCursorByWords(string, 1, cursor)
+            );
+            ci.cancel();
         }
     }
 

@@ -21,6 +21,9 @@ public class Config {
     @SerializedName("edit_history_size")
     public int editHistorySize = 32;
 
+    @SerializedName("use_enhanced_cursor_movement")
+    public boolean useEnhancedCursorMovement = false;
+
     public void upgrade() {
         this.version = DEFAULT.version;
     }

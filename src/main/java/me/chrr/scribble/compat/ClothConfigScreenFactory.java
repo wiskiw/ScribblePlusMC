@@ -67,6 +67,15 @@ public class ClothConfigScreenFactory {
                 .setSaveConsumer((value) -> config.editHistorySize = value)
                 .build());
 
+        category.addEntry(entryBuilder.startBooleanToggle(
+                        Text.translatable("config.scribble.option.use_enhanced_cursor_movement"),
+                        config.useEnhancedCursorMovement
+                )
+                .setTooltip(Text.translatable("config.scribble.description.use_enhanced_cursor_movement"))
+                .setDefaultValue(Config.DEFAULT.useEnhancedCursorMovement)
+                .setSaveConsumer((value) -> config.useEnhancedCursorMovement = value)
+                .build());
+
         return builder.build();
     }
 }
