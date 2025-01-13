@@ -6,6 +6,7 @@ accessible class net/minecraft/client/gui/screen/ingame/BookEditScreen$Line
 
 accessible field net/minecraft/client/gui/screen/ingame/BookEditScreen$PageContent lines [Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$Line;
 accessible field net/minecraft/client/gui/screen/ingame/BookEditScreen$PageContent lineStarts [I
+extendable class net/minecraft/client/gui/screen/ingame/BookEditScreen$PageContent
 
 accessible method net/minecraft/client/gui/screen/ingame/BookEditScreen$Position <init> (II)V
 
@@ -18,3 +19,5 @@ accessible field net/minecraft/client/util/SelectionManager clipboardGetter Ljav
 accessible field net/minecraft/client/util/SelectionManager clipboardSetter Ljava/util/function/Consumer;
 accessible method net/minecraft/client/util/SelectionManager getSelectedText (Ljava/lang/String;)Ljava/lang/String;
 extendable method net/minecraft/client/util/SelectionManager updateSelectionRange (Z)V
+
+accessible method net/minecraft/client/gui/screen/Screen blur ()V

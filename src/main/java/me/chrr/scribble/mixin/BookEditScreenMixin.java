@@ -9,21 +9,21 @@ import me.chrr.scribble.book.*;
 import me.chrr.scribble.gui.ColorSwatchWidget;
 import me.chrr.scribble.gui.IconButtonWidget;
 import me.chrr.scribble.gui.ModifierButtonWidget;
-import me.chrr.scribble.model.BookEditScreenMemento;
-import me.chrr.scribble.model.command.*;
-import me.chrr.scribble.tool.Restorable;
-import me.chrr.scribble.tool.commandmanager.Command;
-import me.chrr.scribble.tool.commandmanager.CommandManager;
-import me.chrr.scribble.model.BookEditScreenMemento;
-import me.chrr.scribble.model.command.*;
-import me.chrr.scribble.tool.AdvancedTextHandler;
-import me.chrr.scribble.tool.Restorable;
-import me.chrr.scribble.tool.commandmanager.Command;
-import me.chrr.scribble.tool.commandmanager.CommandManager;
+import me.chrr.scribble.history.BookEditScreenMemento;
+import me.chrr.scribble.history.command.*;
+import me.chrr.scribble.history.Restorable;
+import me.chrr.scribble.history.command.Command;
+import me.chrr.scribble.history.CommandManager;
 import net.minecraft.client.font.TextHandler;
+import net.minecraft.client.gui.DrawContext;
+import net.minecraft.client.gui.Drawable;
+import net.minecraft.client.gui.Element;
+import net.minecraft.client.gui.Selectable;
+import net.minecraft.client.gui.navigation.GuiNavigationPath;
 import net.minecraft.client.gui.screen.ConfirmScreen;
 import net.minecraft.client.gui.screen.Screen;
 import net.minecraft.client.gui.screen.ingame.BookEditScreen;
+import net.minecraft.client.gui.widget.Widget;
 import net.minecraft.client.util.SelectionManager;
 import net.minecraft.client.util.math.Rect2i;
 import net.minecraft.entity.player.PlayerEntity;
@@ -48,9 +48,11 @@ import org.spongepowered.asm.mixin.injection.callback.CallbackInfoReturnable;
 import java.nio.file.Path;
 import java.util.*;
 
+//? if >=1.21.2
+import net.minecraft.component.type.WritableBookContentComponent;
+
 @Mixin(BookEditScreen.class)
-public abstract class BookEditScreenMixin extends Screen
-        implements PagesListener, Restorable<BookEditScreenMemento> {
+public abstract class BookEditScreenMixin extends Screen implements PagesListener, Restorable<BookEditScreenMemento> {
 
     @Unique
     private static final int MAX_PAGES_NUMBER = 100;
@@ -115,9 +117,6 @@ public abstract class BookEditScreenMixin extends Screen
 
     @Shadow
     protected abstract void updateButtons();
-
-    @Shadow
-    protected abstract String getCurrentPageContent();
     //endregion
 
     // List of text on the pages of the book. This replaces the usual
@@ -126,7 +125,9 @@ public abstract class BookEditScreenMixin extends Screen
     private final List<RichText> richPages = new ArrayList<>();
 
     @Unique
-    private final CommandManager commandManager = new CommandManager(Scribble.getConfig().editHistorySize());
+    private final CommandManager commandManager = new CommandManager(
+            Scribble.CONFIG_MANAGER.getConfig().editHistorySize
+    );
 
     @Unique
     @Nullable
@@ -161,11 +162,9 @@ public abstract class BookEditScreenMixin extends Screen
     @Unique
     private IconButtonWidget loadBookButton;
 
-    // Dummy constructor to match super class. The mixin derives from
-    // `Screen` so we don't have to shadow as many methods.
-    // This should never be called.
-    protected BookEditScreenMixin(Text title) {
-        super(title);
+    // Dummy constructor to match super class.
+    private BookEditScreenMixin() {
+        super(null);
     }
 
     @Unique
@@ -224,11 +223,7 @@ public abstract class BookEditScreenMixin extends Screen
     @Unique
     private void initButtons() {
         int x = this.width / 2 + 78;
-        int y = 12;
-
-        if (Scribble.shouldCenter) {
-            y += (height - 192) / 3;
-        }
+        int y = Scribble.getBookScreenYOffset(height) + 12;
 
         // Modifier buttons
         boldButton = addModifierButton(
@@ -295,8 +290,7 @@ public abstract class BookEditScreenMixin extends Screen
     }
 
     @Unique
-    private ModifierButtonWidget addModifierButton(Formatting modifier, Text tooltip,
-                                                   int x, int y, int u, int v, int width, int height) {
+    private ModifierButtonWidget addModifierButton(Formatting modifier, Text tooltip, int x, int y, int u, int v, int width, int height) {
         ModifierButtonWidget button = new ModifierButtonWidget(
                 tooltip,
                 (toggled) -> toggleActiveModifier(modifier, toggled),
@@ -308,7 +302,10 @@ public abstract class BookEditScreenMixin extends Screen
     }
 
     @Inject(method = "<init>", at = @At(value = "TAIL"))
-    public void init(PlayerEntity player, ItemStack itemStack, Hand hand, CallbackInfo ci) {
+    //? if <1.21.2 {
+    /*public void init(PlayerEntity player, ItemStack stack, Hand hand, CallbackInfo ci) {
+     *///?} else
+    public void init(PlayerEntity player, ItemStack stack, Hand hand, WritableBookContentComponent writableBookContent, CallbackInfo ci) {
         // Replace the selection manager with our own
         currentPageSelectionManager = new RichSelectionManager(
                 this::getCurrentPageText,
@@ -327,9 +324,8 @@ public abstract class BookEditScreenMixin extends Screen
             this.richPages.add(RichText.fromFormattedString(page));
         }
 
-        // fixme should it be here?
         // After loading the pages, we update cursor formatting.
-//        getRichSelectionManager().notifyCursorFormattingChanged();
+        getRichSelectionManager().notifyCursorFormattingChanged();
     }
 
     @Unique
@@ -387,8 +383,10 @@ public abstract class BookEditScreenMixin extends Screen
                 button.visible = !signing && richPages.size() < MAX_PAGES_NUMBER
         );
 
-        Optional.ofNullable(saveBookButton).ifPresent(button -> button.visible = !signing);
-        Optional.ofNullable(loadBookButton).ifPresent(button -> button.visible = !signing);
+
+        boolean showSaveLoadButtons = Scribble.CONFIG_MANAGER.getConfig().showSaveLoadButtons;
+        Optional.ofNullable(saveBookButton).ifPresent(button -> button.visible = !signing && showSaveLoadButtons);
+        Optional.ofNullable(loadBookButton).ifPresent(button -> button.visible = !signing && showSaveLoadButtons);
     }
 
     @Unique
@@ -446,10 +444,6 @@ public abstract class BookEditScreenMixin extends Screen
 
     @Unique
     private void saveTo(Path path) {
-        if (client == null) {
-            return;
-        }
-
         try {
             BookFile bookFile = new BookFile(this.player.getGameProfile().getName(), List.copyOf(richPages));
             bookFile.write(path);
@@ -501,6 +495,60 @@ public abstract class BookEditScreenMixin extends Screen
             Command command = new InsertPageCommand(richPages, currentPage, this);
             commandManager.execute(command);
         }
+    }
+
+    // If we need to center the GUI, we shift the Y of the texture draw call down.
+    // For 1.20.1, this draw call happens in render, so we don't need to do it separately.
+    //? if >=1.20.2 {
+    //? if >=1.21.2 {
+    @ModifyArg(method = "renderBackground", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Ljava/util/function/Function;Lnet/minecraft/util/Identifier;IIFFIIII)V"), index = 3)
+    //?} else
+    /*@ModifyArg(method = "renderBackground", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;drawTexture(Lnet/minecraft/util/Identifier;IIIIII)V"), index = 2)*/
+    public int shiftBackgroundY(int y) {
+        return Scribble.getBookScreenYOffset(height) + y;
+    }
+    //?}
+
+    // If we need to center the GUI, we shift the Y of the button dimensions down.
+    @Redirect(method = "init", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;addDrawableChild(Lnet/minecraft/client/gui/Element;)Lnet/minecraft/client/gui/Element;"))
+    public <T extends Element & Drawable & Selectable> T shiftButtonY(BookEditScreen screen, T element) {
+        if (element instanceof Widget widget) {
+            widget.setY(widget.getY() + Scribble.getBookScreenYOffset(height));
+        }
+
+        return addDrawableChild(element);
+    }
+
+    // If we need to center the GUI, we shift any mouse clicks down.
+    @ModifyArg(method = "mouseClicked", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;screenPositionToAbsolutePosition(Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$Position;)Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$Position;"))
+    public BookEditScreen.Position shiftMouseClicks(BookEditScreen.Position position) {
+        return new BookEditScreen.Position(position.x, position.y - Scribble.getBookScreenYOffset(height));
+    }
+
+    // If we need to center the GUI, we shift any mouse drags down.
+    @ModifyArg(method = "mouseDragged", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;screenPositionToAbsolutePosition(Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$Position;)Lnet/minecraft/client/gui/screen/ingame/BookEditScreen$Position;"))
+    public BookEditScreen.Position shiftMouseDrags(BookEditScreen.Position position) {
+        return new BookEditScreen.Position(position.x, position.y - Scribble.getBookScreenYOffset(height));
+    }
+
+    // When rendering, we translate the matrices of the draw context to draw the text further down if needed.
+    // Note that this happens after the parent screen render, so only the text in the book is shifted.
+    //? if >=1.20.2 {
+    @Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/Screen;render(Lnet/minecraft/client/gui/DrawContext;IIF)V", shift = At.Shift.AFTER))
+    //?} else
+    /*@Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/ingame/BookEditScreen;renderBackground(Lnet/minecraft/client/gui/DrawContext;)V", shift = At.Shift.AFTER))*/
+    public void translateRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        context.getMatrices().push();
+        context.getMatrices().translate(0f, Scribble.getBookScreenYOffset(height), 0f);
+    }
+
+    // At the end of rendering, we need to pop those matrices we pushed.
+    //? if >=1.20.2 {
+    @Inject(method = "render", at = @At(value = "RETURN"))
+    //?} else
+    /*@Inject(method = "render", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/screen/Screen;render(Lnet/minecraft/client/gui/DrawContext;IIF)V"))*/
+    public void popRender(DrawContext context, int mouseX, int mouseY, float delta, CallbackInfo ci) {
+        context.getMatrices().pop();
     }
 
     /**
@@ -565,19 +613,6 @@ public abstract class BookEditScreenMixin extends Screen
         }
     }
 
-    @Inject(method = "selectCurrentWord", at = @At(value = "HEAD"), cancellable = true)
-    private void selectCurrentWord(int cursor, CallbackInfo ci) {
-        if (Scribble.getConfig().isAdvancedCursorMovementEnabled()) {
-            // original Minecraft selectCurrentWord() implementation with custom moveCursorByWords() call
-            String string = this.getCurrentPageContent();
-            getRichSelectionManager().setSelection(
-                    AdvancedTextHandler.moveCursorByWords(string, -1, cursor),
-                    AdvancedTextHandler.moveCursorByWords(string, 1, cursor)
-            );
-            ci.cancel();
-        }
-    }
-
     @Inject(method = "removeEmptyPages", at = @At(value = "TAIL"))
     private void removeEmptyPages(CallbackInfo ci) {
         ListIterator<RichText> listIterator = this.richPages.listIterator(this.richPages.size());
@@ -586,11 +621,13 @@ public abstract class BookEditScreenMixin extends Screen
         }
     }
 
-    @Inject(method = "appendNewPage", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z"), cancellable = true)
-    private void appendNewPage(CallbackInfo ci) {
+    @Redirect(method = "appendNewPage", at = @At(value = "INVOKE", target = "Ljava/util/List;add(Ljava/lang/Object;)Z"))
+    private boolean appendNewPage(List<String> page, Object empty) {
+        // FIXME: It feels slightly confusing that we pass in richPages here, but at the same time
+        //        use PagesListener to add plain-text pages. It makes it hard to follow.
         Command command = new InsertPageCommand(richPages, richPages.size(), this);
         commandManager.execute(command);
-        ci.cancel();
+        return true;
     }
 
     @Override
@@ -638,12 +675,13 @@ public abstract class BookEditScreenMixin extends Screen
         Scribble.LOGGER.warn("setPageContent() was called, but ignored.");
     }
 
-    @Inject(method = "charTyped", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/SelectionManager;insert(Ljava/lang/String;)V"), cancellable = true)
-    private void charTypedEditMode(char chr, int modifiers, CallbackInfoReturnable<Boolean> cir) {
-        Command command = new ActionCommand<>(this, () -> this.getRichSelectionManager().insert(chr));
+    // NOTE: There are two "insert" calls in the original method. One is editing the book title, which
+    //       takes a char, the other one is editing the page, which takes a String. We're targeting the
+    //       second one.
+    @Redirect(method = "charTyped", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/util/SelectionManager;insert(Ljava/lang/String;)V"))
+    private void charTypedEditMode(SelectionManager instance, String string) {
+        Command command = new ActionCommand<>(this, () -> this.getRichSelectionManager().insert(string));
         commandManager.execute(command);
-        cir.setReturnValue(true);
-        cir.cancel();
     }
 
     @Inject(method = "keyPressedEditMode", at = @At(value = "HEAD"), cancellable = true)
@@ -651,7 +689,7 @@ public abstract class BookEditScreenMixin extends Screen
         // Override COPY and CUT shortcuts
         if (hasControlDown() && !hasAltDown() && (keyCode == GLFW.GLFW_KEY_C || keyCode == GLFW.GLFW_KEY_X)) {
             // Copy formatting when the config option is set and the SHIFT key is not held down.
-            boolean shouldCopyFormatting = Scribble.getConfig().isCopyFormattingCodesEnabled() && !hasShiftDown();
+            boolean shouldCopyFormatting = Scribble.CONFIG_MANAGER.getConfig().copyFormattingCodes && !hasShiftDown();
 
             // Put the selected text on the clipboard with or without formatting.
             String selectedText = getRichSelectionManager().getSelectedFormattedText();
@@ -743,6 +781,13 @@ public abstract class BookEditScreenMixin extends Screen
     @ModifyArg(method = "drawCursor", at = @At(value = "INVOKE", target = "Lnet/minecraft/client/gui/DrawContext;fill(IIIII)V"), index = 4)
     private int modifyLineCursorColor(int constant) {
         return modifyEndCursorColor(constant) | 0xff000000;
+    }
+
+    // Don't switch focus when asked to switch focus. This is a workaround for
+    // MC-262268 / #30 where widgets would flash when trying to switch focus.
+    @Override
+    protected void switchFocus(GuiNavigationPath path) {
+        this.blur();
     }
 
     /**

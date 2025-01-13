@@ -1,3 +1,40 @@
+## 1.4.4
+
+- Update icon and banner.
+- Disallow keyboard focusing when editing books.
+- Allow saving of written books.
+- Add Russian translations. (Thanks to @FaNToMaSikkk for contributing!)
+- Add German translations. (Thanks to @J4PC for contributing!)
+
+## 1.4.3
+
+- Update to 1.21.4.
+- Add Simplified Chinese translations. (Thanks to @junshengxie for contributing!)
+
+## 1.4.2
+
+- Fix compatibility with Symbol Chat.
+- Add a config option to hide the save/load buttons.
+- Add Turkish translations. (Thanks to @MissionWAR for contributing!)
+
+## 1.4.1-beta
+
+- Add support for Forge and NeoForge.
+- Add Traditional Chinese translations. (Thanks to @yichifauzi for contributing!)
+
+## 1.4.0
+
+- Add a config option to center book editing / reading GUI's vertically.
+
+## 1.3.4
+
+- Update to 1.21.3.
+
+## 1.3.3
+
+- Update to 1.21.2.
+- Drop support for 1.20.3 to 1.20.6.
+
 ## 1.3.2
 
 - Add a configuration option to copy without formatting by default.
