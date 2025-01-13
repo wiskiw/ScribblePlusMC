@@ -1,3 +1,4 @@
+
 # Scribble Plus
 
 **Scribble Plus** is a fork of the original [Scribble](https://github.com/chrrs/scribble) mod by [chrrs](https://github.com/chrrs), maintaining all the beloved features while introducing new enhancements.
@@ -5,8 +6,8 @@
 ## New Features
 
 - **Advanced Cursor Movement**: Experience cursor behavior more akin to standard text editors. This feature is disabled by default, but can be toggled via ModMenu.
-- **Undo/Redo Support**: Added support for the `Ctrl+Z` (Undo) and `Ctrl+Shift+Z` (Redo) shortcuts. You can undo and redo actions such as *text insertion*, *text deletion*, *style changes*, and *page manipulation*. Please note, this feature is still under testing.
-- **Better [Symbol Chat Mod](https://modrinth.com/mod/symbol-chat) Integration**: Improved integration with the Symbol Chat mod ensures that various fonts and symbols are displayed correctly, providing a seamless chat experience.
+- **Undo/Redo Support** (*merged into the main mod*): ~~Added support for the `Ctrl+Z` (Undo) and `Ctrl+Shift+Z` (Redo) shortcuts. You can undo and redo actions such as *text insertion*, *text deletion*, *style changes*, and *page manipulation*. Please note, this feature is still under testing.~~
+- **Better [Symbol Chat Mod](https://modrinth.com/mod/symbol-chat) Integration** (*fixed by Symbol Chat Mod*): ~~Improved integration with the Symbol Chat mod ensures that various fonts and symbols are displayed correctly, providing a seamless chat experience.~~
 
 
 ## Original Features
@@ -21,6 +22,6 @@ Scribble Plus  will strive to keep up with updates to the original Scribble mod,
 
 ## Contributing
 Feel free to contribute to the development of Scribble Plus by submitting pull requests or reporting issues to this repo.
-
----
-Big thanks to [chrrs](https://github.com/chrrs) for creating the original Scribble mod. 
+  
+---  
+Big thanks to [chrrs](https://github.com/chrrs) for creating the original Scribble mod.

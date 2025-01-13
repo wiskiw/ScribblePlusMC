@@ -2,7 +2,7 @@
     "schemaVersion": 1,
     "id": "scribble",
     "version": "${modVersion}",
-    "name": "Scribble",
+    "name": "${modName}",
     "description": "Expertly edit your books with rich formatting options, page utilities and more!",
     "authors": [
         "chrrrs",
