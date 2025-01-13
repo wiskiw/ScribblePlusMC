@@ -2,8 +2,8 @@
     "schemaVersion": 1,
     "id": "scribble",
     "version": "${modVersion}",
-    "name": "${modName}",
-    "description": "Helps to edit your books with rich formatting options, page utilities and more! The Scribble Mod with some additional tweaks.",
+    "name": "Scribble",
+    "description": "Expertly edit your books with rich formatting options, page utilities and more!",
     "authors": [
         "chrrrs",
         "WiskiWiski"
